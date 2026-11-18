@@ -34,4 +34,5 @@
 - 职位 13px accent 色 -- 身份标识
 - 简介 12px secondary -- 最次要，可以在空间不足时省略
 
-### 推荐 `transparent` card_style -- 人物组件靠面孔和排列本身构成视觉结构
+### card_style
+- 推荐 `transparent` card_style -- 人物组件靠面孔和排列本身构成视觉结构

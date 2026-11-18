@@ -7,10 +7,10 @@
   1. 选择性栅格化：dom-to-svg 画不出来的绘制（径向/锥形/多层渐变、filter、mask、
      background-image:url、mix-blend-mode）截成图层嵌回页面，文字与卡片保持矢量
   2. 卡片打标：给每张卡片根节点加 `pptx-card` class，供 svg2pptx 成组与做入场动画
-  3. 兜底改写：简单伪元素物化、CSS border 三角形转 SVG、渐变文字改纯色
+  3. 兜底改写：渐变色标解析、CSS border 三角形转 SVG、渐变文字改纯色
 - dom-to-svg 直接将 DOM 树转为 SVG，保留 <text> 元素
 
-降级方案：Puppeteer PDF + pdf2svg（文字变 path，不可编辑）
+dom-to-svg 装不上时本脚本直接失败；此时可改走 html2png.py + png2pptx.py 出不可编辑版。
 
 首次运行自动安装依赖（dom-to-svg, puppeteer, esbuild）到 skill 根目录的 node_modules。
 
@@ -378,7 +378,7 @@ function applyFallbacks() {
             }
         }
 
-        if (config.fallbacks) await page.evaluate(applyFallbacks);
+        await page.evaluate(applyFallbacks);
 
         const svgString = await page.evaluate(async () => {
             const { documentToSVG, inlineResources } = window.__domToSvg;
@@ -401,29 +401,6 @@ function applyFallbacks() {
 
     await browser.close();
     console.log('Done: ' + config.files.length + ' SVGs');
-})();
-"""
-
-FALLBACK_SCRIPT = r"""
-const puppeteer = require('puppeteer');
-const path = require('path');
-
-(async () => {
-    const config = JSON.parse(process.argv[2]);
-    const browser = await puppeteer.launch({
-        headless: 'new',
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
-    });
-    for (const item of config.files) {
-        const page = await browser.newPage();
-        await page.setViewport({ width: 1280, height: 720 });
-        await page.goto('file://' + item.html, { waitUntil: 'networkidle0', timeout: 30000 });
-        await page.pdf({ path: item.pdf, width: '1280px', height: '720px',
-                         printBackground: true, preferCSSPageSize: true });
-        console.log('PDF: ' + path.basename(item.html));
-        await page.close();
-    }
-    await browser.close();
 })();
 """
 
@@ -466,13 +443,13 @@ def ensure_puppeteer() -> bool:
     return True
 
 
-def ensure_deps() -> tuple:
-    """安装依赖，返回 (方案名, bundle 路径)。方案名: dom-to-svg / pdf2svg / none"""
+def ensure_bundle() -> str | None:
+    """装好 puppeteer 与 dom-to-svg，并把后者打成浏览器可注入的 bundle；失败返回 None。"""
     if not ensure_puppeteer():
-        return ("none", None)
+        return None
     if not _ensure_module("dom-to-svg", 120):
-        print("dom-to-svg unavailable, using pdf2svg fallback", file=sys.stderr)
-        return ("pdf2svg", None)
+        print("dom-to-svg unavailable. 可改用 html2png.py + png2pptx.py 生成不可编辑版。", file=sys.stderr)
+        return None
 
     bundle_path = WORK_DIR / "dom-to-svg.bundle.js"
     if not bundle_path.exists():
@@ -488,9 +465,8 @@ def ensure_deps() -> tuple:
             entry_path.unlink(missing_ok=True)
         if result.returncode != 0:
             print(f"esbuild failed: {result.stderr}", file=sys.stderr)
-            return ("pdf2svg", None)
-
-    return ("dom-to-svg", str(bundle_path))
+            return None
+    return str(bundle_path)
 
 
 def run_node(script: str, config: dict, tmp_name: str) -> bool:
@@ -504,61 +480,27 @@ def run_node(script: str, config: dict, tmp_name: str) -> bool:
         script_path.unlink(missing_ok=True)
 
 
-def convert_dom_to_svg(html_files, output_dir, bundle_path, raster=True, scale=2.0, fallbacks=True) -> bool:
-    config = {
-        "bundlePath": bundle_path,
-        "raster": raster,
-        "fallbacks": fallbacks,
-        "scale": scale,
-        "files": [{"html": str(f), "svg": str(output_dir / (f.stem + ".svg"))} for f in html_files],
-    }
-    print(f"Converting {len(html_files)} HTML files (dom-to-svg, text editable)...")
-    return run_node(CONVERT_SCRIPT, config, ".dom2svg_tmp.js")
-
-
-def convert_pdf2svg(html_files, output_dir) -> bool:
-    """降级方案：Puppeteer PDF + pdf2svg（文字变 path，不可编辑）"""
-    if not shutil.which("pdf2svg"):
-        print("pdf2svg not found (macOS: brew install pdf2svg / Debian: apt install pdf2svg)", file=sys.stderr)
-        return False
-
-    pdf_tmp = WORK_DIR / ".pdf_tmp"
-    pdf_tmp.mkdir(exist_ok=True)
-    config = {"files": [{"html": str(f), "pdf": str(pdf_tmp / (f.stem + ".pdf"))} for f in html_files]}
-    try:
-        print(f"Step 1/2: HTML -> PDF ({len(html_files)} files)...")
-        if not run_node(FALLBACK_SCRIPT, config, ".fallback_tmp.js"):
-            return False
-        print("Step 2/2: PDF -> SVG (WARNING: text becomes paths, NOT editable)...")
-        success = 0
-        for item in config["files"]:
-            svg_path = output_dir / (Path(item["pdf"]).stem + ".svg")
-            result = subprocess.run(["pdf2svg", item["pdf"], str(svg_path)],
-                                    capture_output=True, text=True, timeout=60)
-            success += result.returncode == 0
-        return success > 0
-    finally:
-        shutil.rmtree(pdf_tmp, ignore_errors=True)
-
-
-def convert(html_path: Path, output_dir: Path, raster: bool = True, scale: float = 2.0,
-            fallbacks: bool = True) -> bool:
+def convert(html_path: Path, output_dir: Path, raster: bool = True, scale: float = 2.0) -> bool:
     html_files = [html_path] if html_path.is_file() else sorted(html_path.glob("*.html"), key=natural_key)
     if not html_files:
         print(f"No HTML files in {html_path}", file=sys.stderr)
         return False
+    bundle_path = ensure_bundle()
+    if bundle_path is None:
+        return False
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    method, bundle_path = ensure_deps()
-    if method == "none":
+    config = {
+        "bundlePath": bundle_path,
+        "raster": raster,
+        "scale": scale,
+        "files": [{"html": str(f), "svg": str(output_dir / (f.stem + ".svg"))} for f in html_files],
+    }
+    print(f"Converting {len(html_files)} HTML files (dom-to-svg, text editable)...")
+    if not run_node(CONVERT_SCRIPT, config, ".dom2svg_tmp.js"):
         return False
-    if method == "dom-to-svg":
-        if convert_dom_to_svg(html_files, output_dir, bundle_path, raster=raster, scale=scale,
-                              fallbacks=fallbacks):
-            print(f"\nDone! {len(html_files)} SVGs -> {output_dir}")
-            return True
-        print("dom-to-svg failed, falling back to pdf2svg...")
-    return convert_pdf2svg(html_files, output_dir)
+    print(f"\nDone! {len(html_files)} SVGs -> {output_dir}")
+    return True
 
 
 def main():
@@ -567,16 +509,13 @@ def main():
     parser.add_argument("-o", "--output", help="Output directory (default: <slides parent>/svg)")
     parser.add_argument("--no-raster", action="store_true",
                         help="Skip selective rasterization (unsupported backgrounds/filters will be lost)")
-    parser.add_argument("--no-fallbacks", action="store_true", help=argparse.SUPPRESS)  # 调试用
     parser.add_argument("--scale", type=float, default=2.0,
                         help="Device pixel ratio for rasterized layers (default: 2)")
     args = parser.parse_args()
 
     html_path = Path(args.path).resolve()
     output_dir = Path(args.output).resolve() if args.output else html_path.parent / "svg"
-    ok = convert(html_path, output_dir, raster=not args.no_raster, scale=args.scale,
-                 fallbacks=not args.no_fallbacks)
-    sys.exit(0 if ok else 1)
+    sys.exit(0 if convert(html_path, output_dir, raster=not args.no_raster, scale=args.scale) else 1)
 
 
 if __name__ == "__main__":

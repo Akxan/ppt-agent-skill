@@ -117,27 +117,18 @@ def validate_outline(payload: Any, expected_pages: tuple[int, int] | None = None
 # ── planning.json ───────────────────────────────────────────────────────────
 
 def planning_pages(payload: Any) -> list[dict]:
-    """策划稿 -> 页面列表。接受数组，或 {pages: [...]} / {planning: [...]} / 单页对象。"""
+    """策划稿 -> 页面列表。接受页面数组，或 {"pages": [...]}。"""
     if isinstance(payload, dict):
-        for key in ("pages", "planning", "ppt_planning"):
-            inner = payload.get(key)
-            if isinstance(inner, dict):
-                inner = inner.get("pages")
-            if isinstance(inner, list):
-                payload = inner
-                break
-        else:
-            payload = [payload.get("page", payload)]
+        payload = payload.get("pages")
     return [page for page in payload if isinstance(page, dict)] if isinstance(payload, list) else []
 
 
 def page_number(page: dict) -> Any:
-    return page.get("page_number", page.get("slide_number"))
+    return page.get("page_number")
 
 
 def card_chart(card: dict) -> Any:
-    chart = card.get("chart")
-    return card.get("chart_type") or (chart.get("chart_type") if isinstance(chart, dict) else None)
+    return card.get("chart_type")
 
 
 def _card_has_data(card: dict) -> bool:
@@ -149,10 +140,9 @@ def _validate_card(card: dict, label: str, report: Report) -> None:
     card_type = card.get("card_type")
     if card_type not in C.CARD_TYPES:
         report.error(f"{label}: card_type '{card_type}' 不合法，可选 {', '.join(C.CARD_TYPES)}")
-    title = _text(card.get("title")) or _text(card.get("headline"))
-    body = card.get("content", card.get("body"))
-    has_body = bool(_text(body)) or bool([item for item in body or [] if _text(item)]) \
-        if isinstance(body, (str, list)) else False
+    title = _text(card.get("title"))
+    body = card.get("content")
+    has_body = bool(_text(body)) or (isinstance(body, list) and any(_text(item) for item in body))
     if not (title or has_body or card.get("data_points") or card_chart(card)):
         report.error(f"{label}: 空卡片（没有标题、正文、数据或图表）")
     chart = card_chart(card)
@@ -188,7 +178,7 @@ def _validate_page(page: dict, report: Report) -> None:
 
     if page_type != "content":
         return
-    if not _text(page.get("goal")) and not _text(page.get("page_goal")):
+    if not _text(page.get("goal")):
         report.warn(f"{label}: 缺少 goal（这页最想让观众记住什么）")
     layout = C.normalize_layout(page.get("layout_hint"))
     if not _text(page.get("layout_hint")):

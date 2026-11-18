@@ -31,4 +31,5 @@
 - 头像（48px 圆形裁切） + 姓名（16px 700） + 职位（13px secondary）
 - 来源信息要明显弱于引用文字 -- 观众先读金句，再看是谁说的
 
-### 推荐 `transparent` card_style -- 金句裸露在虚空中，靠文字自身的重力撑住画面
+### card_style
+- 推荐 `transparent` card_style -- 金句裸露在虚空中，靠文字自身的重力撑住画面

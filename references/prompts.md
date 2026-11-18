@@ -392,59 +392,13 @@
 - **同页限制**：同一页面最多同时使用 2 种 accent 色（--accent-1 和 --accent-2），不要 4 个全用
 - **每个卡片**：最多使用 1 种 accent 色作为主题色
 
-## Bento Grid 布局系统
+## Bento Grid 布局与卡片
 
-根据 layout_hint 选择布局，用 CSS Grid 精确实现。所有坐标基于内容区(40px padding)。
+布局坐标、7 种布局的 CSS Grid 写法、6 种基础卡片（text / data / list / tag_cloud / process / data_highlight）的规格与最低内容要求见 `bento-grid.md`；其余卡片类型见 `blocks/`。按策划稿的 layout_hint 与 card_type 实现，记住三点：
 
-### 布局映射表
-
-| layout_hint | CSS grid-template | 卡片尺寸 |
-|-------------|------------------|---------|
-| 单一焦点 | 1fr / 1fr | 1200x580 |
-| 50/50 对称 | 1fr 1fr / 1fr | 各 590x580 |
-| 非对称两栏 (2/3+1/3) | 2fr 1fr / 1fr | 790+390 x 580 |
-| 三栏等宽 | repeat(3, 1fr) / 1fr | 各 387x580 |
-| 主次结合 | 2fr 1fr / 1fr 1fr | 790x580 + 390x280x2 |
-| 英雄式+3子 | 1fr / auto 1fr 然后 repeat(3,1fr) | 1200x260 + 387x300x3 |
-| 混合网格 | 自定义 grid-row/column span | 尺寸由内容决定 |
-
-间距: gap=20px | 圆角: border-radius=12px | 内边距: padding=24px
-
-## 6 种卡片类型的 HTML 实现
-
-### text（文本卡片）
-- 标题: h3, font-size=18-20px, font-weight=700, color=text-primary
-- 正文: p, font-size=13-14px, line-height=1.8, color=text-secondary
-- 关键词: 用 <strong> 或 <span class="highlight"> 包裹（背景 accent-primary 10% 透明度）
-
-### data（数据卡片）
-- 核心数字: font-size=36-48px, font-weight=800, **直接用 `color: var(--accent-1)`**
-  - 不要用 `background-clip: text` 渐变文字：转 PPTX 后退化为渐变的第一个颜色
-- 单位/标签: font-size=14-16px, color=text-secondary 或 color=accent-2
-- 补充说明: font-size=13px, 在数字下方
-
-### list（列表卡片）
-- 列表项: display=flex, gap=10px
-- 圆点: min-width=6-8px, height=6-8px, border-radius=50%, background=accent-primary
-- 文字: font-size=13px, color=text-secondary, line-height=1.6
-- 交替使用不同 accent 色的圆点增加层次感
-
-### tag_cloud（标签云）
-- 容器: display=flex, flex-wrap=wrap, gap=8px
-- 标签: display=inline-block, padding=4px 12px, border-radius=9999px
-- 标签边框: border=1px solid accent-primary 30%透明, color=accent-primary, font-size=12px
-
-### process（流程卡片）
-- 步骤: display=flex 水平排列，或垂直排列
-- 节点: width/height=32px, border-radius=50%, background=accent-primary, 居中显示步骤数字
-- 连线: 节点之间用 `<div>` 作为连接线（height=2px, background=accent-color）
-- 箭头: 用内联 `<svg>` 三角形（`<polygon>` 或 `<path>`）
-- 标签: font-size=12-13px, margin-top=8px
-
-### data_highlight（大数据高亮区）
-- 用于封面或重点页的超大数据展示
-- 数字: font-size=64-80px, font-weight=900
-- 用 accent 颜色直接上色（渐变文字转 PPTX 后会退化为纯色）
+- 间距 gap=20px，卡片内边距 padding=24px，圆角用风格的 `--card-radius`
+- 数据数字直接用 `color: var(--accent-1)`，不要用渐变文字（转 PPTX 后退化为纯色）
+- 禁止空白卡片、只有标题的卡片、只有一句话的卡片
 
 ## 视觉设计原则
 
@@ -637,145 +591,21 @@
 - 禁止浅色背景 + 白色文字
 - 禁止硬编码颜色值，所有颜色必须通过 CSS 变量引用
 
-## 纯 CSS 数据可视化（推荐使用）
+## 数据可视化
 
-数据卡片不要只放一个大数字。用纯 CSS/SVG 实现轻量数据可视化，让数字更有冲击力。以下是 8 种可视化类型，根据数据特征选择：
+数据卡片不要只放一个大数字，至少配一个可视化元素。模板在图表库里（`charts/index.md` 有 18 种图表的索引与选型表）：策划稿的卡片写了 `chart_type` 时用对应模板；没写时按下表自选，模板见 `charts/basic.md`。
 
-### 1. 进度条（表示百分比/完成度）
-```css
-.progress-bar {
-  height: 8px; border-radius: 4px;
-  background: var(--card-bg-from);
-  overflow: hidden;
-}
-.progress-bar .fill {
-  height: 100%; border-radius: 4px;
-  background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
-  /* width 用内联 style 设置百分比 */
-}
-```
+| 数据类型 | 推荐图表（chart_type） |
+|---------|----------------------|
+| 百分比/完成度 | 进度条 `progress_bar` 或 环形图 `ring` |
+| 两项或多项对比 | 对比柱 `comparison_bar` |
+| 时间趋势 | 迷你折线 `sparkline` |
+| 比例直觉化 | 点阵图 `waffle` |
+| 核心 KPI | KPI 指标卡 `kpi` |
+| 多指标并排 | 指标行 `metric_row` |
+| 评级/评分 | 评分指示器 `rating` |
 
-### 2. 对比柱（两项对比）
-```css
-.compare-bar {
-  display: flex; gap: 4px; align-items: flex-end;
-  height: 60px;
-}
-.compare-bar .bar {
-  flex: 1; border-radius: 4px 4px 0 0;
-  /* height 用内联 style 设置百分比 */
-}
-```
-
-### 3. 环形百分比（内联 SVG 画弧，中心文字用 HTML 叠加）
-```html
-<div style="position:relative; width:80px; height:80px;">
-  <svg width="80" height="80" viewBox="0 0 80 80">
-    <circle cx="40" cy="40" r="32" fill="none"
-            stroke="var(--card-bg-from)" stroke-width="10"/>
-    <circle cx="40" cy="40" r="32" fill="none"
-            stroke="var(--accent-1)" stroke-width="10"
-            stroke-dasharray="180.96 201.06" stroke-linecap="round"
-            transform="rotate(-90 40 40)"/>
-  </svg>
-  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
-              font-size:16px; font-weight:700; color:var(--text-primary);">90%</div>
-</div>
-```
-计算公式: dasharray 第一个值 = 2 * PI * r * (百分比/100), 第二个值 = 2 * PI * r
-
-### 4. 指标行（数字+标签+进度条 组合）
-```html
-<div style="display:flex; align-items:center; gap:12px; margin-bottom:10px;">
-  <span style="font-size:24px; font-weight:800; color:var(--accent-1);
-               font-variant-numeric:tabular-nums; min-width:60px;">87%</span>
-  <div style="flex:1;">
-    <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;">用户满意度</div>
-    <div class="progress-bar"><div class="fill" style="width:87%"></div></div>
-  </div>
-</div>
-```
-
-### 5. 迷你折线图 Sparkline（趋势方向）
-```html
-<svg width="120" height="40" viewBox="0 0 120 40">
-  <!-- 面积填充 -->
-  <path d="M0,35 L20,28 L40,30 L60,20 L80,15 L100,10 L120,5 L120,40 L0,40 Z"
-        fill="var(--accent-1)" opacity="0.1"/>
-  <!-- 折线 -->
-  <polyline points="0,35 20,28 40,30 60,20 80,15 100,10 120,5"
-            fill="none" stroke="var(--accent-1)" stroke-width="2" stroke-linecap="round"/>
-  <!-- 终点圆点 -->
-  <circle cx="120" cy="5" r="3" fill="var(--accent-1)"/>
-</svg>
-```
-用在数据数字旁边，占位小但信息量大。数据点坐标根据实际趋势调整 y 值（高=好 -> y 值小）。
-
-### 6. 点阵图 Waffle Chart（百分比直觉化）
-```html
-<div style="display:grid; grid-template-columns:repeat(10,1fr); gap:3px; width:100px;">
-  <!-- 67 个填充点 + 33 个空点 = 67% -->
-  <div style="width:8px; height:8px; border-radius:2px; background:var(--accent-1);"></div>
-  <!-- 重复填充点... -->
-  <div style="width:8px; height:8px; border-radius:2px; background:var(--card-bg-from);"></div>
-  <!-- 重复空点... -->
-</div>
-```
-10x10 = 100 格，填充数量 = 百分比值。比进度条更直觉。
-
-### 7. KPI 指标卡（数字+趋势箭头+标签）
-```html
-<div style="display:flex; align-items:baseline; gap:8px;">
-  <span style="font-size:40px; font-weight:800; color:var(--accent-1);
-               font-variant-numeric:tabular-nums;">2.4M</span>
-  <!-- 上升箭头（绿色=好） -->
-  <svg width="16" height="16" viewBox="0 0 16 16">
-    <polygon points="8,2 14,10 2,10" fill="#16A34A"/>
-  </svg>
-  <span style="font-size:14px; color:#16A34A; font-weight:600;">+12.3%</span>
-</div>
-<div style="font-size:12px; color:var(--text-secondary); margin-top:4px;">月活跃用户数</div>
-```
-趋势箭头颜色：上升用绿色 #16A34A，下降用红色 #DC2626，持平用 text-secondary。
-
-### 8. 评分指示器（5分制）
-```html
-<div style="display:flex; gap:6px;">
-  <!-- 4 个实心圆 + 1 个空心圆 = 4/5 分 -->
-  <div style="width:12px; height:12px; border-radius:50%; background:var(--accent-1);"></div>
-  <div style="width:12px; height:12px; border-radius:50%; background:var(--accent-1);"></div>
-  <div style="width:12px; height:12px; border-radius:50%; background:var(--accent-1);"></div>
-  <div style="width:12px; height:12px; border-radius:50%; background:var(--accent-1);"></div>
-  <div style="width:12px; height:12px; border-radius:50%; border:2px solid var(--accent-1); background:transparent;"></div>
-</div>
-```
-
-### 可视化选择指南
-
-| 数据类型 | 推荐可视化 |
-|---------|----------|
-| 百分比/完成度 | 进度条 或 环形百分比 |
-| 两项对比 | 对比柱 |
-| 时间趋势 | 迷你折线图 |
-| 比例直觉化 | 点阵图 |
-| 核心 KPI | KPI 指标卡 |
-| 多指标并排 | 指标行（多行堆叠） |
-| 评级/评分 | 评分指示器 |
-
-## 内容密度要求
-
-每张卡片不能只有一个标题和一句话，必须信息充实：
-
-| 卡片类型 | 最低内容要求 |
-|---------|------------|
-| text | 标题 + 至少 2 段正文（每段 30-50 字）或 标题 + 3-5 条要点 |
-| data | 核心数字 + 单位 + 变化趋势(升/降/持平) + 一句解读 + 进度条/对比可视化 |
-| list | 至少 4 条列表项，每条 15-30 字 |
-| process | 至少 3 个步骤，每步有标题+一句描述 |
-| tag_cloud | 至少 5 个标签 |
-| data_highlight | 1 个超大数字 + 副标题 + 补充数据行 |
-
-**禁止**：空白卡片、只有标题没有内容的卡片、只有一句话的卡片
+模板里的尺寸和数据是示例，按卡片空间和真实数据改；颜色保持用 CSS 变量。
 
 ## 特殊字符与单位符号处理（必须遵守）
 

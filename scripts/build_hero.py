@@ -39,7 +39,6 @@ PADDING = 60
 LABEL_HEIGHT = 60
 BG_COLOR = (10, 10, 12)
 LABEL_COLOR = (255, 255, 255)
-SUB_COLOR = (180, 200, 220)
 
 
 def get_font(size: int, bold: bool = False, cjk: bool = False):
