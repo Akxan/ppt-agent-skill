@@ -8,6 +8,7 @@
   <p>
     <a href="README.md">中文文档</a> ·
     <a href="#-quick-start">Quick Start</a> ·
+    <a href="https://akxan.github.io/ppt-agent-skill/">Live Gallery</a> ·
     <a href="#-style-gallery-26-styles">Gallery</a> ·
     <a href="#-workflow">Workflow</a> ·
     <a href="#-architecture">Architecture</a>
@@ -32,7 +33,7 @@
     <img src="https://img.shields.io/github/last-commit/Akxan/ppt-agent-skill?style=flat-square&color=blue&logo=git&logoColor=white" alt="Last commit" />
     <img src="https://img.shields.io/github/repo-size/Akxan/ppt-agent-skill?style=flat-square&color=orange" alt="Repo size" />
     <img src="https://img.shields.io/github/languages/top/Akxan/ppt-agent-skill?style=flat-square&color=8b5cf6" alt="Top language" />
-    <img src="https://img.shields.io/badge/python-≥3.8-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+    <img src="https://img.shields.io/badge/python-≥3.9-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
     <img src="https://img.shields.io/badge/node-≥18-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node" />
     <img src="https://img.shields.io/badge/PPTX-editable-D24726?style=flat-square&logo=microsoftpowerpoint&logoColor=white" alt="PPTX" />
     <img src="https://img.shields.io/badge/Claude%20Code-skill-D97757?style=flat-square" alt="Claude Code Skill" />
@@ -73,7 +74,7 @@ Each style mirrors the actual production typography of world-class brands (**not
 | **Smart Illustrations** | AI-generated images with 5 visual fusion techniques (fade/tinted overlay/ambient bg/etc.) |
 | **Failure Modes Catalog** | 8 failure modes (underfill / decorative_substitution / etc.) + repair-order rules |
 | **Cross-page Narrative** | Density alternation · chapter color progression · cover-ending visual echo |
-| **Style Preview Gallery** | `gallery.py` one-shot generates a 26-style card-wall index |
+| **Style Preview Gallery** | `gallery.py` one-shot generates a 26-style card-wall index — [view it live](https://akxan.github.io/ppt-agent-skill/) |
 | **Editable PPTX** | Text becomes text boxes, graphics become native shapes, cards become groups; radial backgrounds, glows and other complex effects are rasterized into faithful image layers |
 | **Transitions & Animations** | Fade between slides by default; optional per-card entrance (on click or automatic), verified in PowerPoint and playable in the browser preview |
 | **Strict Mode** | Optional: `validate.py` checks outline, planning, style, slides and screenshots after each step |
@@ -81,7 +82,17 @@ Each style mirrors the actual production typography of world-class brands (**not
 
 ## 🚀 Quick Start
 
-**Use as a Claude Code Skill** (recommended):
+**Install**: clone the repo into Claude Code's skills directory, then start a new session.
+
+```bash
+# Personal: available in every project
+git clone --depth 1 https://github.com/Akxan/ppt-agent-skill ~/.claude/skills/ppt-agent-skill
+
+# Or per-project: run from the project root
+git clone --depth 1 https://github.com/Akxan/ppt-agent-skill .claude/skills/ppt-agent-skill
+```
+
+**Use**: once installed, just describe what you need and the skill triggers automatically:
 
 ```
 You: Make a presentation about X
@@ -104,18 +115,18 @@ All artifacts saved to ppt-output/
 | With requirements | `15-page dark-tech style AI safety presentation` |
 | Implicit | `I need to present to my boss about Y` / `Make training materials` |
 
-**Requirements**:
+**Requirements** (only for SVG / PPTX export; without them you still get the HTML preview):
 
 ```bash
-# Python deps
+# Python >= 3.9
 pip install python-pptx lxml Pillow
 
-# Node.js >= 18; puppeteer auto-installs on first html2svg.py run
+# Node.js >= 18; puppeteer auto-installs on the first html2svg.py run (downloads Chrome, ~600 MB)
 ```
 
 ## 🎨 Style Gallery (26 styles)
 
-Five categories cover all typical commercial scenarios. Every mock is a real 1280×720 design:
+Five categories cover all typical commercial scenarios. Every mock is a real 1280×720 design — open each one in the [live gallery](https://akxan.github.io/ppt-agent-skill/):
 
 ### Dark Professional (7 styles · `references/styles/dark.md`)
 
@@ -244,6 +255,7 @@ Detailed flow in [`SKILL.md`](SKILL.md).
 
 ```
 ppt-agent-skill/
+├── .github/workflows/pages.yml   # Publishes the style gallery to GitHub Pages
 ├── SKILL.md                      # Main workflow instructions (Agent entry point)
 ├── README.md / README_EN.md      # Chinese / English docs
 ├── ATTRIBUTIONS.md               # Sources and credits

@@ -8,6 +8,7 @@
   <p>
     <a href="README_EN.md">English</a> ·
     <a href="#-快速开始">快速开始</a> ·
+    <a href="https://akxan.github.io/ppt-agent-skill/">在线画廊</a> ·
     <a href="#-26-风格预览画廊">风格画廊</a> ·
     <a href="#-工作流">工作流</a> ·
     <a href="#-架构">架构</a>
@@ -32,7 +33,7 @@
     <img src="https://img.shields.io/github/last-commit/Akxan/ppt-agent-skill?style=flat-square&color=blue&logo=git&logoColor=white" alt="Last commit" />
     <img src="https://img.shields.io/github/repo-size/Akxan/ppt-agent-skill?style=flat-square&color=orange" alt="Repo size" />
     <img src="https://img.shields.io/github/languages/top/Akxan/ppt-agent-skill?style=flat-square&color=8b5cf6" alt="Top language" />
-    <img src="https://img.shields.io/badge/python-≥3.8-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
+    <img src="https://img.shields.io/badge/python-≥3.9-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python" />
     <img src="https://img.shields.io/badge/node-≥18-339933?style=flat-square&logo=node.js&logoColor=white" alt="Node" />
     <img src="https://img.shields.io/badge/PPTX-editable-D24726?style=flat-square&logo=microsoftpowerpoint&logoColor=white" alt="PPTX" />
     <img src="https://img.shields.io/badge/Claude%20Code-skill-D97757?style=flat-square" alt="Claude Code Skill" />
@@ -73,7 +74,7 @@
 | **智能配图** | AI 生成配图 + 5 种视觉融入技法（渐隐融合/色调蒙版/氛围底图等）|
 | **失败模式目录** | 8 种 failure modes（underfill / decorative_substitution 等）+ 修复顺序铁律 |
 | **跨页叙事** | 密度交替节奏 / 章节色彩递进 / 封面-结尾呼应 / 渐进揭示 |
-| **风格预览画廊** | `gallery.py` 一键生成 26 风格卡片墙索引页 |
+| **风格预览画廊** | `gallery.py` 一键生成 26 风格卡片墙索引页，[在线查看](https://akxan.github.io/ppt-agent-skill/) |
 | **可编辑 PPTX** | 文字是文本框、图形是原生形状、卡片是组合；径向背景、光晕等复杂效果自动转成图层保真 |
 | **切换与动画** | 默认页间淡入；可选卡片逐张入场（点击或自动），在 PowerPoint 中实测可用，浏览器预览页也能播放同样的动效 |
 | **严格模式** | 可选：`validate.py` 在每步后校验大纲、策划稿、风格、设计稿与截图 |
@@ -81,7 +82,17 @@
 
 ## 🚀 快速开始
 
-**作为 Claude Code Skill 调用**（推荐）：
+**安装**：把仓库克隆到 Claude Code 的 skills 目录，然后新开一个会话。
+
+```bash
+# 个人级：所有项目可用
+git clone --depth 1 https://github.com/Akxan/ppt-agent-skill ~/.claude/skills/ppt-agent-skill
+
+# 或项目级：只在当前项目可用（在项目根目录执行）
+git clone --depth 1 https://github.com/Akxan/ppt-agent-skill .claude/skills/ppt-agent-skill
+```
+
+**使用**：装好后直接说需求，Skill 会自动触发：
 
 ```
 你：帮我做一个关于 X 的 PPT
@@ -104,18 +115,18 @@ Agent 提问调研需求（等你回复 7 题）
 | 带要求 | `做 15 页暗黑科技风的 AI 安全汇报材料` |
 | 隐式触发 | `我要给老板汇报 Y` / `做个培训课件` / `做路演 deck` |
 
-**环境依赖**：
+**环境依赖**（只有导出 SVG / PPTX 时需要；缺少时仍会交付 HTML 预览）：
 
 ```bash
-# Python 依赖
+# Python >= 3.9
 pip install python-pptx lxml Pillow
 
-# Node.js >= 18，puppeteer 在首次 html2svg.py 运行时自动安装
+# Node.js >= 18；puppeteer 在首次运行 html2svg.py 时自动安装（会下载 Chrome，约 600 MB）
 ```
 
 ## 🎨 26 风格预览画廊
 
-5 个板块，覆盖所有典型商业场景。每个 mock 都是真实 1280×720 设计稿：
+5 个板块，覆盖所有典型商业场景。每个 mock 都是真实 1280×720 设计稿，可以在[在线画廊](https://akxan.github.io/ppt-agent-skill/)里逐个点开看：
 
 ### 暗色专业（7 风格 · `references/styles/dark.md`）
 
@@ -244,6 +255,7 @@ pip install python-pptx lxml Pillow
 
 ```
 ppt-agent-skill/
+├── .github/workflows/pages.yml   # 把风格画廊自动发布到 GitHub Pages
 ├── SKILL.md                      # 主工作流指令（Agent 入口）
 ├── README.md / README_EN.md      # 本文件 / English
 ├── ATTRIBUTIONS.md               # 借鉴来源与致谢
