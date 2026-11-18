@@ -261,7 +261,7 @@ ppt-agent-skill/
 │   ├── blocks/                   # 7 component prototypes + card-styles
 │   ├── page-templates/           # cover / toc / section / end
 │   ├── principles/               # 6 design principles + failure-modes
-│   └── design-runtime/           # Design specs, CSS technique library, data-type mapping
+│   └── design-runtime/           # CSS technique library, data-type mapping
 ├── scripts/                      # Scripts (index: scripts/README.md)
 │   ├── html_packager.py          # Multi-page HTML → paginated preview
 │   ├── html2svg.py               # HTML → SVG (editable text, complex effects rasterized)
@@ -273,8 +273,7 @@ ppt-agent-skill/
 │   ├── resource_loader.py        # Fetch reference resources by planning fields
 │   ├── smoke_test.py             # Smoke tests
 │   └── gallery.py / build_hero.py# Style gallery and README composites
-├── ppt-output/style-gallery/     # 26 mocks (1280×720) + screenshots + index.html
-└── docs/                         # Historical design doc
+└── ppt-output/style-gallery/     # 26 mocks (1280×720) + screenshots + index.html
 ```
 
 ## 🧪 Quality Assurance
@@ -307,10 +306,6 @@ Typography practices borrowed from real brand websites (**not by mimicking scree
 | Browser gradient | [Arc](https://arc.net) | Gradient color + rounded icons + creative collage |
 | Fashion luxury | Tom Ford | Didot italic + black gold + centered symmetry + 0.65em tracking |
 | Friendly editor | [Notion](https://notion.so) | Lyon Display + cream white + emoji system |
-
-## 📄 Design Docs
-
-Design doc for the 26-style / 18-chart redesign: [`docs/design-history-2026-05.md`](docs/design-history-2026-05.md) (historical record; SKILL.md and the code are authoritative).
 
 ## ⭐ Star History
 

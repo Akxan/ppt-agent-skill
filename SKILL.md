@@ -383,7 +383,7 @@ python3 SKILL_DIR/scripts/resource_loader.py resolve --planning OUTPUT_DIR/plann
 | `references/blocks/*.md` | Step 5c，按 card_type / card_style | 7 种组件原型 + card-styles |
 | `references/page-templates/*.md` | Step 5c，按 page_type | cover / toc / section / end |
 | `references/principles/*.md` | Step 4-5 自检 | 6 条设计原则 + failure-modes（8 种失败模式与修复顺序）|
-| `references/design-runtime/*.md` | Step 5c 进阶 | design-specs（画布与排版规格）/ css-weapons（12 种 CSS 技法）/ data-type-visual-mapping（数据类型 -> 卡片/版式/图表）|
+| `references/design-runtime/*.md` | Step 4 / 5c 进阶 | css-weapons（12 种 CSS 技法）/ data-type-visual-mapping（数据类型 -> 卡片/版式/图表）|
 | `references/pipeline-compat.md` | **Step 5c** | 哪些 CSS 保持矢量、哪些转图层、哪些会丢 |
 | `references/strict-mode.md` | 启用严格模式时 | 校验规则、可选字段、图审缺陷分级 |
 

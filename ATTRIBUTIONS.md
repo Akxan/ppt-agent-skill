@@ -17,7 +17,7 @@
 | 目录 | 内容 |
 |------|------|
 | `references/principles/` | 6 份设计原则（visual-hierarchy / cognitive-load / composition / color-psychology / data-visualization / narrative-arc）+ README |
-| `references/design-runtime/` | design-specs / css-weapons / data-type-visual-mapping |
+| `references/design-runtime/` | css-weapons / data-type-visual-mapping |
 | `references/blocks/` | 7 种组件原型（timeline / diagram / quote / comparison / people / image-hero / matrix-chart）+ card-styles + README |
 | `references/page-templates/` | cover / toc / section / end |
 | `references/layouts/` | 10 种版式 + README |

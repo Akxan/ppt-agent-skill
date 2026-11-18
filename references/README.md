@@ -18,7 +18,7 @@ references/
   blocks/               7 种组件原型 + card-styles.md
   page-templates/       cover / toc / section / end
   principles/           6 条设计原则 + failure-modes.md
-  design-runtime/       design-specs / css-weapons / data-type-visual-mapping
+  design-runtime/       css-weapons / data-type-visual-mapping
 ```
 
 ## 各步读什么

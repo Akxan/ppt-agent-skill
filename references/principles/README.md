@@ -26,6 +26,6 @@
 
 ```
 原则层（principles/*.md）              = 为什么这样做   -> 没有具体规则覆盖时据此判断
-规格层（design-runtime/、bento-grid）  = 具体数值与技法 -> 执行约束
+规格层（bento-grid、typography、design-runtime/） = 具体数值与技法 -> 执行约束
 组件层（layouts / blocks / charts）    = 用什么版式、组件、图表
 ```

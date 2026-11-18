@@ -261,7 +261,7 @@ ppt-agent-skill/
 │   ├── blocks/                   # 7 种组件原型 + card-styles
 │   ├── page-templates/           # cover / toc / section / end
 │   ├── principles/               # 6 条设计原则 + failure-modes
-│   └── design-runtime/           # 设计规格、CSS 技法库、数据类型映射
+│   └── design-runtime/           # CSS 技法库、数据类型映射
 ├── scripts/                      # 脚本（索引见 scripts/README.md）
 │   ├── html_packager.py          # 多页 HTML → 翻页预览
 │   ├── html2svg.py               # HTML → SVG（文字可编辑，复杂效果转图层）
@@ -273,8 +273,7 @@ ppt-agent-skill/
 │   ├── resource_loader.py        # 按策划稿字段取参考资源
 │   ├── smoke_test.py             # 冒烟测试
 │   └── gallery.py / build_hero.py# 风格画廊与 README 拼图
-├── ppt-output/style-gallery/     # 26 个 1280×720 mock + 截图 + index.html
-└── docs/                         # 历史设计文档
+└── ppt-output/style-gallery/     # 26 个 1280×720 mock + 截图 + index.html
 ```
 
 ## 🧪 质量保证
@@ -307,10 +306,6 @@ python3 scripts/smoke_test.py --export
 | 浏览器渐变 | [Arc](https://arc.net) | 渐变彩色 + 圆角图标 + 创意拼贴 |
 | 时尚奢华 | Tom Ford | Didot italic + 黑金 + 居中对称 + 0.65em 字距 |
 | 友好编辑器 | [Notion](https://notion.so) | Lyon Display + 米白 + emoji 系统 |
-
-## 📄 设计文档
-
-26 风格与 18 图表那次重做的设计文档：[`docs/design-history-2026-05.md`](docs/design-history-2026-05.md)（历史记录，当前实现以 SKILL.md 与代码为准）。
 
 ## ⭐ Star History
 
