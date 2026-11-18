@@ -147,6 +147,12 @@ def suite_validators(s: Suite) -> None:
     s.check(not V.validate_style(style).errors, "预置风格作为 style.json 被判错")
     s.check(V.validate_style({"style_name": "x", "background": {}}).errors, "残缺的 style.json 未报错")
 
+    import html_packager
+    preview = html_packager.build_preview([GALLERY / "royal_red.html"], animate="rise", trigger="auto")
+    s.check('"animate": "rise"' in preview and '"trigger": "auto"' in preview, "预览页没有写入动画参数")
+    s.check(preview.count("<iframe") == 1 and "__" not in preview.split("<script>")[0].split("<iframe")[0],
+            "预览页模板占位符未替换")
+
     slide = ('<style>:root{--bg-primary:#000;--text-primary:#fff;--accent-1:#0ff}'
              'body{width:1280px;height:720px;font-variant-numeric:tabular-nums}</style>'
              '<div class="card" data-card-id="a">12</div>')
@@ -249,6 +255,10 @@ def suite_export(s: Suite) -> None:
         pptx_path = work / "deck.pptx"
         if not run("svg2pptx.py", str(work / "svg"), "-o", str(pptx_path), "--animate", "fade"):
             return
+        import html_packager
+        import pptx_motion
+        s.check(set(html_packager.ENTRANCE_EFFECTS) == set(pptx_motion.ENTRANCE_EFFECTS),
+                "预览页与 PPTX 的入场效果清单不一致")
 
         prs = Presentation(str(pptx_path))
         s.check(len(prs.slides) == 3, f"PPTX 应有 3 页，实际 {len(prs.slides)}")

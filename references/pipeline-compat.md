@@ -127,6 +127,8 @@ PowerPoint 只能用打开文件那台机器上装了的字体，Google Fonts �
 
 入场动画作用在卡片组合上，所以页面必须有带标记的卡片。动画在 PowerPoint 里验证过；WPS、Keynote、Google Slides 对动画的支持不完整。
 
+`html_packager.py` 接受同名的 `--animate` / `--animate-trigger`，在浏览器预览里用同样的卡片识别规则和时长（500ms，间隔 150ms）模拟入场效果，不需要 PowerPoint 就能看动效。
+
 ---
 
 ## 6. 写完一页后的检查

@@ -75,7 +75,7 @@ Each style mirrors the actual production typography of world-class brands (**not
 | **Cross-page Narrative** | Density alternation · chapter color progression · cover-ending visual echo |
 | **Style Preview Gallery** | `gallery.py` one-shot generates a 26-style card-wall index |
 | **Editable PPTX** | Text becomes text boxes, graphics become native shapes, cards become groups; radial backgrounds, glows and other complex effects are rasterized into faithful image layers |
-| **Transitions & Animations** | Fade between slides by default; optional per-card entrance (on click or automatic), verified in PowerPoint |
+| **Transitions & Animations** | Fade between slides by default; optional per-card entrance (on click or automatic), verified in PowerPoint and playable in the browser preview |
 | **Strict Mode** | Optional: `validate.py` checks outline, planning, style, slides and screenshots after each step |
 | **Smoke Testing** | `smoke_test.py` covers styles, mocks, charts, validators, doc links and the real export pipeline |
 

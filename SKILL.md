@@ -259,7 +259,7 @@ pip install python-pptx lxml Pillow
 
 **依次执行**：
 
-1. **合并预览**
+1. **合并预览**（做了卡片动画时加上与步骤 3 相同的 `--animate` / `--animate-trigger`，浏览器里就能预览动效，用户没有 PowerPoint 也能看）
    ```bash
    python3 SKILL_DIR/scripts/html_packager.py OUTPUT_DIR/slides/ -o OUTPUT_DIR/preview.html
    ```
@@ -286,7 +286,7 @@ pip install python-pptx lxml Pillow
    ```
 
 5. **通知用户** -- 告知产物位置和使用方式：
-   - `preview.html` -- 浏览器打开，方向键翻页
+   - `preview.html` -- 浏览器打开，方向键翻页；带动画预览时点击画面或按 → 逐张出现卡片
    - `presentation.pptx` -- 文字与形状可直接编辑；卡片是组合，可整体移动
    - 字体：PPTX 默认映射到 Office 自带字体（Arial / Georgia / 微软雅黑等）。机器上装了设计字体时可加 `--fonts design` 重新导出
    - 做了动画时说明触发方式（点击 / 自动）

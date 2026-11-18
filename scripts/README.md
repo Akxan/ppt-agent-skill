@@ -4,7 +4,7 @@
 
 | 脚本 | 用途 |
 |------|------|
-| `html_packager.py` | 多页 HTML -> 单文件翻页预览 `preview.html` |
+| `html_packager.py` | 多页 HTML -> 单文件翻页预览 `preview.html`；`--animate` 在浏览器里模拟卡片入场动画 |
 | `html2svg.py` | HTML -> SVG。文字保留为 `<text>`；dom-to-svg 画不出的效果先截成图层；给卡片打成组标记 |
 | `svg2pptx.py` | SVG -> 可编辑 PPTX。原生形状、文本框、卡片组合、页间切换、卡片入场动画 |
 | `pptx_motion.py` | 切换与动画的 PresentationML 构造（被 `svg2pptx.py` / `png2pptx.py` 调用） |
