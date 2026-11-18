@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""SVG to PPTX -- 将 SVG 元素解析为原生 OOXML 形状
+"""SVG -> PPTX：把 dom-to-svg 产出的 SVG 逐元素翻成原生 OOXML 形状
 
-支持: rect, text+tspan, circle, ellipse, line, path, image(data URI + file)
-      linearGradient, radialGradient, transform(translate/scale/matrix)
-      group opacity 传递, 首屏 rect 自动设为幻灯片背景
+支持:
+  rect / circle / ellipse / line / polygon / polyline / path（含 A/S/Q/T 命令）
+  text + tspan（字距、斜体、竖排）、image（data URI + 本地文件）
+  linearGradient / radialGradient、完整仿射变换（matrix/translate/scale/rotate）
+  group opacity、首个全屏矩形或图片 -> 幻灯片背景
+  class 含 pptx-card 的分组 -> PowerPoint 组合（可整体移动、可做入场动画）
+  页间切换（默认淡入）与卡片入场动画（默认关闭）
 
 用法:
   python svg2pptx.py <svg_dir_or_file> -o output.pptx
+      [--transition fade|push|wipe|cover|split|zoom|dissolve|none]
+      [--animate none|fade|wipe|rise|zoom] [--animate-trigger click|auto]
 """
 
 import argparse
@@ -21,6 +27,8 @@ from lxml import etree
 from pptx import Presentation
 from pptx.util import Emu
 
+from pptx_motion import ENTRANCE_EFFECTS, TRANSITIONS, TRANSITION_SPEEDS, apply_entrance, apply_transition
+
 # -------------------------------------------------------------------
 # 常量
 # -------------------------------------------------------------------
@@ -34,8 +42,9 @@ NS = {
 EMU_PX = 9525
 SLIDE_W = 12192000
 SLIDE_H = 6858000
+CANVAS_W, CANVAS_H = 1280, 720
+CARD_CLASS = 'pptx-card'
 
-# CSS 完整命名颜色表（常用子集）
 CSS_COLORS = {
     'aliceblue': 'f0f8ff', 'antiquewhite': 'faebd7', 'aqua': '00ffff',
     'aquamarine': '7fffd4', 'azure': 'f0ffff', 'beige': 'f5f5dc',
@@ -87,58 +96,204 @@ CSS_COLORS = {
     'yellow': 'ffff00', 'yellowgreen': '9acd32',
 }
 
-# 字体回退链
-FONT_FALLBACK = {
-    'PingFang SC': 'Microsoft YaHei',
-    'SF Pro Display': 'Arial',
-    'Helvetica Neue': 'Arial',
-    'Helvetica': 'Arial',
-    'system-ui': 'Microsoft YaHei',
-    'sans-serif': 'Microsoft YaHei',
-}
+# 字体策略
+#   safe（默认）：把设计字体映射到 Windows/macOS 版 Office 都自带的字体，保证衬线/无衬线/等宽/
+#                 粗黑的区分与斜体不丢；收件人没装 Google Fonts 时版面仍可预期
+#   design      ：保留字体栈里的第一个字体名，仅当打开 PPTX 的机器装了这些字体时才正确
+SAFE_FONTS = {'Arial', 'Arial Black', 'Georgia', 'Times New Roman', 'Courier New', 'Verdana', 'Tahoma',
+              'Trebuchet MS', 'Impact', 'Microsoft YaHei', 'SimSun', 'SimHei', 'KaiTi', 'FangSong'}
+DESIGN_ALIASES = {'PingFang SC': 'Microsoft YaHei', 'SF Pro Display': 'Arial', 'SF Pro Text': 'Arial',
+                  'Helvetica Neue': 'Arial', 'Helvetica': 'Arial'}
+GENERIC_FONTS = {'sans-serif', 'serif', 'monospace', 'system-ui', '-apple-system',
+                 'BlinkMacSystemFont', 'cursive', 'fantasy', 'ui-sans-serif', 'ui-serif'}
+_HEAVY = re.compile(r'bagel|bowlby|black|impact|ultra', re.I)
+_MONO = re.compile(r'mono|courier|consolas|menlo', re.I)
+_SERIF = re.compile(r'serif|playfair|fraunces|bodoni|didot|garamond|tiempos|georgia|times|song|mincho|'
+                    r'cheltenham|iowan|sangbleu|editorial', re.I)
+_SANS = re.compile(r'sans|inter|helvetica|arial|grotesk|yahei|hei|pingfang|quicksand|nunito|orbitron|system', re.I)
+_KAI = re.compile(r'kai|楷', re.I)
+_CJK_NAME = re.compile(r'SC|TC|JP|CJK|Song|Hei|YaHei|PingFang|Hiragino|Mincho|Kaiti|Han |SimSun', re.I)
 
 
 def px(v):
-    return int(float(v) * EMU_PX)
+    return int(round(float(v) * EMU_PX))
+
 
 def font_sz(svg_px):
     return max(100, int(float(svg_px) * 75))
 
-def strip_unit(v):
-    return re.sub(r'[a-z%]+', '', str(v))
 
-def resolve_font(ff_str):
-    """解析 font-family 字符串，返回 PPT 可用字体。"""
-    ff_str = ff_str.replace('&quot;', '').replace('"', '').replace("'", '')
-    fonts = [f.strip() for f in ff_str.split(',') if f.strip()]
-    for f in fonts:
-        if f in FONT_FALLBACK:
-            return FONT_FALLBACK[f]
-        if f and f not in ('sans-serif', 'serif', 'monospace', 'system-ui'):
-            return f
-    return 'Microsoft YaHei'
+def num(v, default=0.0):
+    """'12.5px' / '50%' / 12 -> 12.5（单位直接丢弃）"""
+    if v is None:
+        return default
+    m = re.match(r'\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)', str(v))
+    return float(m.group(1)) if m else default
+
+
+def natural_key(path):
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r'(\d+)', path.name)]
+
+
+def _font_class(names):
+    """字体栈 -> heavy / mono / serif / sans：先看首个具体字体名，再看栈尾的通用族。"""
+    concrete = [n for n in names if n not in GENERIC_FONTS]
+    for name in concrete[:1]:
+        for kind, pattern in (('heavy', _HEAVY), ('mono', _MONO), ('serif', _SERIF), ('sans', _SANS)):
+            if pattern.search(name):
+                return kind
+    if 'monospace' in names:
+        return 'mono'
+    return 'serif' if 'serif' in names and 'sans-serif' not in names else 'sans'
+
+
+def resolve_fonts(ff_str, mode='safe'):
+    """font-family 字体栈 -> (latin 字体, 东亚字体)"""
+    names = [f.strip().strip('"\'') for f in ff_str.replace('&quot;', '').split(',') if f.strip()]
+    concrete = [n for n in names if n not in GENERIC_FONTS]
+    kind = _font_class(names)
+    east_asian = 'KaiTi' if any(_KAI.search(n) for n in concrete[:2]) else \
+        'SimSun' if kind == 'serif' else 'Microsoft YaHei'
+    if mode == 'design':
+        latin = DESIGN_ALIASES.get(concrete[0], concrete[0]) if concrete else 'Microsoft YaHei'
+        named = next((n for n in concrete if _CJK_NAME.search(n)), None)
+        return latin, DESIGN_ALIASES.get(named, named) if named else east_asian
+    if concrete and concrete[0] in SAFE_FONTS:
+        return concrete[0], east_asian
+    return {'heavy': 'Arial Black', 'mono': 'Courier New', 'serif': 'Georgia'}.get(kind, 'Arial'), east_asian
+
+
+# safe 字体的字宽与网页字体不同。用本机字体文件量出替换后的宽度，超出浏览器实测宽度时等比缩小字号，
+# 避免相邻文本框互相压住。找不到字体文件时不缩放。
+_FONT_DIRS = ['/System/Library/Fonts/Supplemental', '/Library/Fonts', 'C:/Windows/Fonts',
+              '/usr/share/fonts/truetype/msttcorefonts', '/usr/share/fonts/truetype/liberation']
+_FONT_FILES = {
+    ('Arial', False, False): ['Arial.ttf', 'arial.ttf', 'LiberationSans-Regular.ttf'],
+    ('Arial', True, False): ['Arial Bold.ttf', 'arialbd.ttf', 'LiberationSans-Bold.ttf'],
+    ('Arial', False, True): ['Arial Italic.ttf', 'ariali.ttf', 'LiberationSans-Italic.ttf'],
+    ('Arial', True, True): ['Arial Bold Italic.ttf', 'arialbi.ttf', 'LiberationSans-BoldItalic.ttf'],
+    ('Arial Black', False, False): ['Arial Black.ttf', 'ariblk.ttf'],
+    ('Georgia', False, False): ['Georgia.ttf', 'georgia.ttf', 'LiberationSerif-Regular.ttf'],
+    ('Georgia', True, False): ['Georgia Bold.ttf', 'georgiab.ttf', 'LiberationSerif-Bold.ttf'],
+    ('Georgia', False, True): ['Georgia Italic.ttf', 'georgiai.ttf', 'LiberationSerif-Italic.ttf'],
+    ('Georgia', True, True): ['Georgia Bold Italic.ttf', 'georgiaz.ttf', 'LiberationSerif-BoldItalic.ttf'],
+    ('Courier New', False, False): ['Courier New.ttf', 'cour.ttf', 'LiberationMono-Regular.ttf'],
+    ('Courier New', True, False): ['Courier New Bold.ttf', 'courbd.ttf', 'LiberationMono-Bold.ttf'],
+}
+_font_cache = {}
+
+
+def _metric_font(name, bold, italic):
+    key = (name, bold, italic)
+    if key not in _font_cache:
+        font = None
+        candidates = _FONT_FILES.get(key) or _FONT_FILES.get((name, bold, False)) or \
+            _FONT_FILES.get((name, False, False)) or []
+        try:
+            from PIL import ImageFont
+            for directory in _FONT_DIRS:
+                for filename in candidates:
+                    path = Path(directory) / filename
+                    if path.exists():
+                        font = ImageFont.truetype(str(path), 100)
+                        break
+                if font:
+                    break
+        except Exception:
+            font = None
+        _font_cache[key] = font
+    return _font_cache[key]
+
+
+def fit_scale(text, font_name, bold, italic, size, spacing, measured_width):
+    """替换字体后需要的字号缩放系数（0.75~1.0）；无法测量时返回 1。"""
+    font = _metric_font(font_name, bold, italic)
+    if font is None or measured_width <= 0 or size <= 0:
+        return 1.0
+    latin = ''.join(ch for ch in text if ord(ch) <= 0x2E7F)
+    cjk = len(text) - len(latin)
+    natural = font.getlength(latin) / 100 * size + cjk * size
+    available = measured_width - spacing * len(text)
+    if natural <= 0 or available <= 0 or natural <= available * 1.01:
+        return 1.0
+    return max(0.75, available / natural)
 
 
 # -------------------------------------------------------------------
-# 颜色解析（完整 CSS 命名颜色）
+# 仿射变换 (a, b, c, d, e, f)：x' = a*x + c*y + e, y' = b*x + d*y + f
+# -------------------------------------------------------------------
+IDENTITY = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+_TRANSFORM_RE = re.compile(r'(matrix|translate|scale|rotate)\s*\(([^)]*)\)')
+
+
+def mat_mul(m, n):
+    """先应用 n 再应用 m"""
+    return (m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1],
+            m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3],
+            m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5])
+
+
+def mat_apply(m, x, y):
+    return (m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5])
+
+
+def mat_scale(m):
+    return math.sqrt(abs(m[0] * m[3] - m[1] * m[2])) or 1.0
+
+
+def mat_rotation(m):
+    return math.degrees(math.atan2(m[1], m[0]))
+
+
+def mat_axis_aligned(m):
+    return abs(m[1]) < 1e-6 and abs(m[2]) < 1e-6
+
+
+def parse_transform(text):
+    m = IDENTITY
+    for name, args in _TRANSFORM_RE.findall(text or ''):
+        v = [float(x) for x in re.split(r'[\s,]+', args.strip()) if x]
+        if name == 'matrix' and len(v) == 6:
+            t = tuple(v)
+        elif name == 'translate' and v:
+            t = (1, 0, 0, 1, v[0], v[1] if len(v) > 1 else 0)
+        elif name == 'scale' and v:
+            t = (v[0], 0, 0, v[1] if len(v) > 1 else v[0], 0, 0)
+        elif name == 'rotate' and v:
+            r = math.radians(v[0])
+            t = (math.cos(r), math.sin(r), -math.sin(r), math.cos(r), 0, 0)
+            if len(v) == 3:
+                t = mat_mul(mat_mul((1, 0, 0, 1, v[1], v[2]), t), (1, 0, 0, 1, -v[1], -v[2]))
+        else:
+            continue
+        m = mat_mul(m, t)
+    return m
+
+
+# -------------------------------------------------------------------
+# 颜色
 # -------------------------------------------------------------------
 def parse_color(s):
-    if not s or s.strip() == 'none':
+    """-> (hex6, alpha 0-100000) / ('grad', id) / None"""
+    if not s or s.strip() in ('none', 'transparent'):
         return None
     s = s.strip()
     if s.startswith('url('):
         m = re.search(r'#([\w-]+)', s)
         return ('grad', m.group(1)) if m else None
-    m = re.match(r'rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)', s)
+    m = re.match(r'rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)\s*(?:[,/]\s*([\d.]+%?))?\s*\)', s)
     if m:
-        r, g, b = int(m.group(1)), int(m.group(2)), int(m.group(3))
-        a = float(m.group(4)) if m.group(4) else 1.0
+        r, g, b = (min(255, int(round(float(m.group(i))))) for i in (1, 2, 3))
+        a = 1.0
+        if m.group(4):
+            a = float(m.group(4).rstrip('%')) / (100 if m.group(4).endswith('%') else 1)
         return (f'{r:02x}{g:02x}{b:02x}', int(a * 100000))
     if s.startswith('#'):
         h = s[1:]
-        if len(h) == 3:
-            h = h[0]*2 + h[1]*2 + h[2]*2
-        return (h.lower().ljust(6, '0')[:6], 100000)
+        if len(h) in (3, 4):
+            h = ''.join(ch * 2 for ch in h)
+        alpha = int(int(h[6:8], 16) / 255 * 100000) if len(h) == 8 else 100000
+        return (h.lower().ljust(6, '0')[:6], alpha)
     c = CSS_COLORS.get(s.lower())
     return (c, 100000) if c else None
 
@@ -149,9 +304,8 @@ def parse_color(s):
 def _el(tag, attrib=None, text=None, children=None):
     pre, local = tag.split(':') if ':' in tag else ('a', tag)
     el = etree.Element(f'{{{NS[pre]}}}{local}')
-    if attrib:
-        for k, v in attrib.items():
-            el.set(k, str(v))
+    for k, v in (attrib or {}).items():
+        el.set(k, str(v))
     if text is not None:
         el.text = str(text)
     for c in (children or []):
@@ -159,11 +313,34 @@ def _el(tag, attrib=None, text=None, children=None):
             el.append(c)
     return el
 
+
 def _srgb(hex6, alpha=100000):
     el = _el('a:srgbClr', {'val': hex6})
     if alpha < 100000:
-        el.append(_el('a:alpha', {'val': str(alpha)}))
+        el.append(_el('a:alpha', {'val': str(max(0, alpha))}))
     return el
+
+
+def _make_grad(gdef, opacity=1.0):
+    gs_lst = _el('a:gsLst')
+    for stop in sorted(gdef['stops'], key=lambda s: s['offset']):
+        sc = parse_color(stop['color_str'])
+        if not sc or sc[0] == 'grad':
+            continue
+        alpha = int(sc[1] * stop.get('opacity', 1.0) * opacity)
+        pos = int(min(100, max(0, stop['offset'])) * 1000)
+        gs_lst.append(_el('a:gs', {'pos': str(pos)}, children=[_srgb(sc[0], alpha)]))
+    if len(gs_lst) < 2:
+        return None
+    if gdef.get('type') == 'radial':
+        path = _el('a:path', {'path': 'circle'}, children=[
+            _el('a:fillToRect', {'l': '50000', 't': '50000', 'r': '50000', 'b': '50000'})])
+        return _el('a:gradFill', {'rotWithShape': '1'}, children=[gs_lst, path])
+    dx = gdef.get('x2', 1) - gdef.get('x1', 0)
+    dy = gdef.get('y2', 0) - gdef.get('y1', 0)
+    ang = int(math.degrees(math.atan2(dy, dx)) * 60000) % 21600000
+    return _el('a:gradFill', children=[gs_lst, _el('a:lin', {'ang': str(ang), 'scaled': '0'})])
+
 
 def make_fill(fill_str, grads, opacity=1.0):
     c = parse_color(fill_str)
@@ -171,245 +348,305 @@ def make_fill(fill_str, grads, opacity=1.0):
         return _el('a:noFill')
     if c[0] == 'grad':
         gdef = grads.get(c[1])
-        return _make_grad(gdef) if gdef else _el('a:noFill')
-    hex6, alpha = c
-    alpha = int(alpha * opacity)
-    return _el('a:solidFill', children=[_srgb(hex6, alpha)])
+        grad = _make_grad(gdef, opacity) if gdef else None
+        return grad if grad is not None else _el('a:noFill')
+    return _el('a:solidFill', children=[_srgb(c[0], int(c[1] * opacity))])
 
-def _make_grad(gdef):
-    gs_lst = _el('a:gsLst')
-    for stop in gdef['stops']:
-        pos = int(stop['offset'] * 1000)
-        sc = parse_color(stop['color_str'])
-        if not sc or sc[0] == 'grad':
-            continue
-        hex6, alpha = sc
-        alpha = int(alpha * stop.get('opacity', 1.0))
-        gs_lst.append(_el('a:gs', {'pos': str(pos)}, children=[_srgb(hex6, alpha)]))
 
-    if gdef.get('type') == 'radial':
-        # 径向渐变
-        path = _el('a:path', {'path': 'circle'}, children=[
-            _el('a:fillToRect', {'l': '50000', 't': '50000', 'r': '50000', 'b': '50000'})
-        ])
-        return _el('a:gradFill', {'rotWithShape': '1'}, children=[gs_lst, path])
-    else:
-        # 线性渐变
-        dx = gdef.get('x2', 1) - gdef.get('x1', 0)
-        dy = gdef.get('y2', 1) - gdef.get('y1', 0)
-        ang = int(math.degrees(math.atan2(dy, dx)) * 60000)
-        if ang < 0:
-            ang += 21600000
-        lin = _el('a:lin', {'ang': str(ang), 'scaled': '0'})
-        return _el('a:gradFill', children=[gs_lst, lin])
-
-def make_line(stroke_str, stroke_w=1):
+def make_line(stroke_str, width_px, grads, opacity=1.0, cap=None, dash=None):
+    """SVG 描边 -> a:ln；渐变描边取首个色标。无有效颜色返回 None。"""
     c = parse_color(stroke_str)
-    if not c or c[0] == 'grad':
+    if c and c[0] == 'grad':
+        gdef = grads.get(c[1])
+        c = parse_color(gdef['stops'][0]['color_str']) if gdef and gdef.get('stops') else None
+        if c and c[0] == 'grad':
+            c = None
+    if not c or width_px <= 0:
         return None
-    hex6, alpha = c
-    w = max(1, int(float(strip_unit(stroke_w)) * 12700))
-    return _el('a:ln', {'w': str(w)},
-               children=[_el('a:solidFill', children=[_srgb(hex6, alpha)])])
+    attrib = {'w': str(max(1, int(width_px * 12700 * 0.75)))}
+    if cap == 'round':
+        attrib['cap'] = 'rnd'
+    elif cap == 'square':
+        attrib['cap'] = 'sq'
+    ln = _el('a:ln', attrib, children=[_el('a:solidFill', children=[_srgb(c[0], int(c[1] * opacity))])])
+    if dash:
+        ln.append(_el('a:prstDash', {'val': dash}))
+    ln.append(_el('a:round'))
+    return ln
 
-def make_shape(sid, name, x, y, cx, cy, preset='rect',
-               fill_el=None, line_el=None, rx=0, geom_el=None):
+
+def _xfrm(x, y, cx, cy, flip_h=False, flip_v=False):
+    xfrm = _el('a:xfrm', children=[
+        _el('a:off', {'x': str(int(x)), 'y': str(int(y))}),
+        _el('a:ext', {'cx': str(max(0, int(cx))), 'cy': str(max(0, int(cy)))}),
+    ])
+    if flip_h:
+        xfrm.set('flipH', '1')
+    if flip_v:
+        xfrm.set('flipV', '1')
+    return xfrm
+
+
+def make_shape(sid, name, x, y, cx, cy, preset='rect', fill_el=None, line_el=None,
+               rx=0, geom_el=None, adjustments=None, flip_h=False, flip_v=False):
     sp = _el('p:sp')
     sp.append(_el('p:nvSpPr', children=[
-        _el('p:cNvPr', {'id': str(sid), 'name': name}),
-        _el('p:cNvSpPr'), _el('p:nvPr'),
-    ]))
-    sp_pr = _el('p:spPr')
-    sp_pr.append(_el('a:xfrm', children=[
-        _el('a:off', {'x': str(max(0, int(x))), 'y': str(max(0, int(y)))}),
-        _el('a:ext', {'cx': str(max(0, int(cx))), 'cy': str(max(0, int(cy)))}),
-    ]))
+        _el('p:cNvPr', {'id': str(sid), 'name': name}), _el('p:cNvSpPr'), _el('p:nvPr')]))
+    sp_pr = _el('p:spPr', children=[_xfrm(x, y, cx, cy, flip_h, flip_v)])
     if geom_el is not None:
         sp_pr.append(geom_el)
     else:
-        geom = _el('a:prstGeom', {'prst': preset})
         av = _el('a:avLst')
         if preset == 'roundRect' and rx > 0:
             shorter = max(min(cx, cy), 1)
-            adj = min(50000, int(rx / (shorter / 2) * 50000))
+            adj = min(50000, int(rx / shorter * 100000))
             av.append(_el('a:gd', {'name': 'adj', 'fmla': f'val {adj}'}))
-        geom.append(av)
-        sp_pr.append(geom)
+        for name_, value in (adjustments or {}).items():
+            av.append(_el('a:gd', {'name': name_, 'fmla': f'val {value}'}))
+        sp_pr.append(_el('a:prstGeom', {'prst': preset}, children=[av]))
     sp_pr.append(fill_el if fill_el is not None else _el('a:noFill'))
     if line_el is not None:
         sp_pr.append(line_el)
     sp.append(sp_pr)
     return sp
 
-def make_textbox(sid, name, x, y, cx, cy, paragraphs):
-    """paragraphs = [[{text,sz,bold,hex,alpha,font}, ...], ...]"""
+
+def make_textbox(sid, name, x, y, cx, cy, run, align=None, vertical=False):
+    """run = {text, sz, bold, italic, spc, hex, alpha, latin, ea}"""
     sp = _el('p:sp')
     sp.append(_el('p:nvSpPr', children=[
-        _el('p:cNvPr', {'id': str(sid), 'name': name}),
-        _el('p:cNvSpPr', {'txBox': '1'}), _el('p:nvPr'),
-    ]))
+        _el('p:cNvPr', {'id': str(sid), 'name': name}), _el('p:cNvSpPr', {'txBox': '1'}), _el('p:nvPr')]))
     sp.append(_el('p:spPr', children=[
-        _el('a:xfrm', children=[
-            _el('a:off', {'x': str(max(0, int(x))), 'y': str(max(0, int(y)))}),
-            _el('a:ext', {'cx': str(max(0, int(cx))), 'cy': str(max(0, int(cy)))}),
-        ]),
+        _xfrm(x, y, cx, cy),
         _el('a:prstGeom', {'prst': 'rect'}, children=[_el('a:avLst')]),
         _el('a:noFill'), _el('a:ln', children=[_el('a:noFill')]),
     ]))
-    tx = _el('p:txBody', children=[
-        _el('a:bodyPr', {'wrap': 'none', 'lIns': '0', 'tIns': '0',
-                         'rIns': '0', 'bIns': '0', 'anchor': 't'}),
-        _el('a:lstStyle'),
+    body_attr = {'wrap': 'none', 'lIns': '0', 'tIns': '0', 'rIns': '0', 'bIns': '0', 'anchor': 't'}
+    if vertical:
+        body_attr['vert'] = 'eaVert'
+    rpr_attr = {'lang': 'zh-CN', 'dirty': '0', 'sz': str(run['sz'])}
+    if run.get('bold'):
+        rpr_attr['b'] = '1'
+    if run.get('italic'):
+        rpr_attr['i'] = '1'
+    if run.get('spc'):
+        rpr_attr['spc'] = str(run['spc'])
+    rpr = _el('a:rPr', rpr_attr, children=[
+        _el('a:solidFill', children=[_srgb(run.get('hex', '000000'), run.get('alpha', 100000))]),
+        _el('a:latin', {'typeface': run['latin']}),
+        _el('a:ea', {'typeface': run['ea']}),
     ])
-    for runs in paragraphs:
-        p_el = _el('a:p')
-        for run in runs:
-            rpr_a = {'lang': 'zh-CN', 'dirty': '0'}
-            if run.get('sz'):
-                rpr_a['sz'] = str(run['sz'])
-            if run.get('bold'):
-                rpr_a['b'] = '1'
-            rpr = _el('a:rPr', rpr_a)
-            rpr.append(_el('a:solidFill', children=[
-                _srgb(run.get('hex', '000000'), run.get('alpha', 100000))
-            ]))
-            font = run.get('font', 'Microsoft YaHei')
-            rpr.append(_el('a:latin', {'typeface': font}))
-            rpr.append(_el('a:ea', {'typeface': font}))
-            p_el.append(_el('a:r', children=[rpr, _el('a:t', text=run.get('text', ''))]))
-        tx.append(p_el)
-    sp.append(tx)
+    paragraph = _el('a:p')
+    if align:
+        paragraph.append(_el('a:pPr', {'algn': align}))
+    paragraph.append(_el('a:r', children=[rpr, _el('a:t', text=run['text'])]))
+    sp.append(_el('p:txBody', children=[_el('a:bodyPr', body_attr), _el('a:lstStyle'), paragraph]))
     return sp
 
 
+def make_group(sid, name):
+    return _el('p:grpSp', children=[
+        _el('p:nvGrpSpPr', children=[
+            _el('p:cNvPr', {'id': str(sid), 'name': name}), _el('p:cNvGrpSpPr'), _el('p:nvPr')]),
+        _el('p:grpSpPr'),
+    ])
+
+
+def fit_group(group):
+    """按子形状包围盒设置组合的 xfrm；空组返回 False。"""
+    boxes = []
+    for off in group.iter(f'{{{NS["a"]}}}off'):
+        ext = off.getnext()
+        if ext is None or not ext.tag.endswith('}ext'):
+            continue
+        x, y = int(off.get('x')), int(off.get('y'))
+        boxes.append((x, y, x + int(ext.get('cx')), y + int(ext.get('cy'))))
+    if not boxes:
+        return False
+    x0, y0 = min(b[0] for b in boxes), min(b[1] for b in boxes)
+    x1, y1 = max(b[2] for b in boxes), max(b[3] for b in boxes)
+    group.find(f'{{{NS["p"]}}}grpSpPr').append(_el('a:xfrm', children=[
+        _el('a:off', {'x': str(x0), 'y': str(y0)}),
+        _el('a:ext', {'cx': str(x1 - x0), 'cy': str(y1 - y0)}),
+        _el('a:chOff', {'x': str(x0), 'y': str(y0)}),
+        _el('a:chExt', {'cx': str(x1 - x0), 'cy': str(y1 - y0)}),
+    ]))
+    return True
+
+
 # -------------------------------------------------------------------
-# SVG Path 解析器 -> OOXML custGeom
+# SVG path -> 绝对坐标段 [('M', [pt]), ('L', [pt]), ('C', [c1, c2, pt]), ('Z', [])]
 # -------------------------------------------------------------------
-_PATH_RE = re.compile(r'([mMzZlLhHvVcCsSqQtTaA])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)')
+_PATH_TOKEN = re.compile(r'([MmZzLlHhVvCcSsQqTtAa])|([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)')
+_PATH_ARGC = {'m': 2, 'l': 2, 'h': 1, 'v': 1, 'c': 6, 's': 4, 'q': 4, 't': 2, 'a': 7}
 
-def parse_path_to_custgeom(d_str, bbox):
-    """SVG path d -> OOXML a:custGeom 元素。bbox=(x,y,w,h) 用于坐标偏移。"""
-    bx, by, bw, bh = bbox
-    scale = 100000  # OOXML 路径坐标空间
 
-    def coord(v, is_x=True):
-        base = bw if is_x else bh
-        offset = bx if is_x else by
-        if base <= 0:
-            return 0
-        return int((float(v) - offset) / base * scale)
+def _arc_to_cubics(x1, y1, rx, ry, phi_deg, large, sweep, x2, y2):
+    """SVG 端点参数化椭圆弧 -> 若干三次贝塞尔 [(c1, c2, end), ...]"""
+    if rx == 0 or ry == 0 or (x1 == x2 and y1 == y2):
+        return [((x1, y1), (x2, y2), (x2, y2))]
+    phi = math.radians(phi_deg % 360)
+    cos_p, sin_p = math.cos(phi), math.sin(phi)
+    dx, dy = (x1 - x2) / 2, (y1 - y2) / 2
+    x1p, y1p = cos_p * dx + sin_p * dy, -sin_p * dx + cos_p * dy
+    rx, ry = abs(rx), abs(ry)
+    lam = x1p ** 2 / rx ** 2 + y1p ** 2 / ry ** 2
+    if lam > 1:
+        rx, ry = rx * math.sqrt(lam), ry * math.sqrt(lam)
+    den = rx ** 2 * y1p ** 2 + ry ** 2 * x1p ** 2
+    coef = math.sqrt(max(0.0, (rx ** 2 * ry ** 2 - den) / den)) if den else 0.0
+    if bool(large) == bool(sweep):
+        coef = -coef
+    cxp, cyp = coef * rx * y1p / ry, -coef * ry * x1p / rx
+    cx = cos_p * cxp - sin_p * cyp + (x1 + x2) / 2
+    cy = sin_p * cxp + cos_p * cyp + (y1 + y2) / 2
 
-    tokens = _PATH_RE.findall(d_str)
-    items = []
-    for cmd_match, num_match in tokens:
-        if cmd_match:
-            items.append(cmd_match)
-        elif num_match:
-            items.append(float(num_match))
+    def angle(ux, uy, vx, vy):
+        return math.atan2(ux * vy - uy * vx, ux * vx + uy * vy)
 
-    path_el = _el('a:path', {'w': str(scale), 'h': str(scale)})
-    i = 0
-    cx_p, cy_p = 0, 0  # current point (absolute)
-    cmd = None
-    rel = False
+    ux, uy = (x1p - cxp) / rx, (y1p - cyp) / ry
+    theta = angle(1, 0, ux, uy)
+    delta = angle(ux, uy, (-x1p - cxp) / rx, (-y1p - cyp) / ry)
+    if not sweep and delta > 0:
+        delta -= 2 * math.pi
+    elif sweep and delta < 0:
+        delta += 2 * math.pi
 
+    count = max(1, math.ceil(abs(delta) / (math.pi / 2) - 1e-9))
+    step = delta / count
+    t = 4 / 3 * math.tan(step / 4)
+
+    def place(ux_, uy_):
+        x, y = rx * ux_, ry * uy_
+        return (cos_p * x - sin_p * y + cx, sin_p * x + cos_p * y + cy)
+
+    cubics = []
+    for _ in range(count):
+        c1, s1 = math.cos(theta), math.sin(theta)
+        theta += step
+        c2, s2 = math.cos(theta), math.sin(theta)
+        cubics.append((place(c1 - t * s1, s1 + t * c1), place(c2 + t * s2, s2 - t * c2), place(c2, s2)))
+    return cubics
+
+
+def parse_path(d):
+    items = [m.group(1) or float(m.group(2)) for m in _PATH_TOKEN.finditer(d)]
+    segments = []
+    cur = start = (0.0, 0.0)
+    last_ctrl = None           # 上一段的控制点，供 S/T 镜像
+    last_cmd = ''
+    i, cmd = 0, None
     while i < len(items):
         if isinstance(items[i], str):
-            cmd = items[i].lower()
-            rel = items[i].islower()
+            cmd = items[i]
             i += 1
-            if cmd == 'z':
-                path_el.append(_el('a:close'))
+            if cmd in 'Zz':
+                segments.append(('Z', []))
+                cur, last_ctrl, last_cmd = start, None, 'z'
                 continue
-
         if cmd is None:
             i += 1
             continue
+        low, rel = cmd.lower(), cmd.islower()
+        argc = _PATH_ARGC.get(low)
+        if argc is None or i + argc > len(items) or any(isinstance(v, str) for v in items[i:i + argc]):
+            break
+        a = items[i:i + argc]
+        i += argc
+        ox, oy = cur if rel else (0.0, 0.0)
 
-        try:
-            if cmd == 'm':
-                x, y = float(items[i]), float(items[i+1])
-                if rel:
-                    x += cx_p; y += cy_p
-                cx_p, cy_p = x, y
-                path_el.append(_el('a:moveTo', children=[
-                    _el('a:pt', {'x': str(coord(x, True)), 'y': str(coord(y, False))})
-                ]))
-                i += 2
-                cmd = 'l'  # implicit lineTo after moveTo
-
-            elif cmd == 'l':
-                x, y = float(items[i]), float(items[i+1])
-                if rel:
-                    x += cx_p; y += cy_p
-                cx_p, cy_p = x, y
-                path_el.append(_el('a:lnTo', children=[
-                    _el('a:pt', {'x': str(coord(x, True)), 'y': str(coord(y, False))})
-                ]))
-                i += 2
-
-            elif cmd == 'h':
-                x = float(items[i])
-                if rel:
-                    x += cx_p
-                cx_p = x
-                path_el.append(_el('a:lnTo', children=[
-                    _el('a:pt', {'x': str(coord(cx_p, True)), 'y': str(coord(cy_p, False))})
-                ]))
-                i += 1
-
-            elif cmd == 'v':
-                y = float(items[i])
-                if rel:
-                    y += cy_p
-                cy_p = y
-                path_el.append(_el('a:lnTo', children=[
-                    _el('a:pt', {'x': str(coord(cx_p, True)), 'y': str(coord(cy_p, False))})
-                ]))
-                i += 1
-
-            elif cmd == 'c':
-                x1, y1 = float(items[i]), float(items[i+1])
-                x2, y2 = float(items[i+2]), float(items[i+3])
-                x, y = float(items[i+4]), float(items[i+5])
-                if rel:
-                    x1 += cx_p; y1 += cy_p
-                    x2 += cx_p; y2 += cy_p
-                    x += cx_p; y += cy_p
-                cx_p, cy_p = x, y
-                path_el.append(_el('a:cubicBezTo', children=[
-                    _el('a:pt', {'x': str(coord(x1, True)), 'y': str(coord(y1, False))}),
-                    _el('a:pt', {'x': str(coord(x2, True)), 'y': str(coord(y2, False))}),
-                    _el('a:pt', {'x': str(coord(x, True)), 'y': str(coord(y, False))}),
-                ]))
-                i += 6
-
-            elif cmd in ('s', 'q', 't', 'a'):
-                # 简化处理：跳过复杂曲线
-                skip = {'s': 4, 'q': 4, 't': 2, 'a': 7}.get(cmd, 2)
-                i += skip
+        if low == 'm':
+            cur = start = (a[0] + ox, a[1] + oy)
+            segments.append(('M', [cur]))
+            cmd = 'l' if rel else 'L'              # 后续坐标对视为 lineTo
+            last_ctrl = None
+        elif low == 'l':
+            cur = (a[0] + ox, a[1] + oy)
+            segments.append(('L', [cur]))
+            last_ctrl = None
+        elif low == 'h':
+            cur = (a[0] + ox, cur[1])
+            segments.append(('L', [cur]))
+            last_ctrl = None
+        elif low == 'v':
+            cur = (cur[0], a[0] + oy)
+            segments.append(('L', [cur]))
+            last_ctrl = None
+        elif low in ('c', 's'):
+            if low == 'c':
+                c1 = (a[0] + ox, a[1] + oy)
+                c2, end = (a[2] + ox, a[3] + oy), (a[4] + ox, a[5] + oy)
             else:
-                i += 1
-        except (IndexError, ValueError):
-            i += 1
+                c1 = (2 * cur[0] - last_ctrl[0], 2 * cur[1] - last_ctrl[1]) \
+                    if last_ctrl and last_cmd in 'cs' else cur
+                c2, end = (a[0] + ox, a[1] + oy), (a[2] + ox, a[3] + oy)
+            segments.append(('C', [c1, c2, end]))
+            cur, last_ctrl = end, c2
+        elif low in ('q', 't'):
+            if low == 'q':
+                ctrl, end = (a[0] + ox, a[1] + oy), (a[2] + ox, a[3] + oy)
+            else:
+                ctrl = (2 * cur[0] - last_ctrl[0], 2 * cur[1] - last_ctrl[1]) \
+                    if last_ctrl and last_cmd in 'qt' else cur
+                end = (a[0] + ox, a[1] + oy)
+            c1 = (cur[0] + 2 / 3 * (ctrl[0] - cur[0]), cur[1] + 2 / 3 * (ctrl[1] - cur[1]))
+            c2 = (end[0] + 2 / 3 * (ctrl[0] - end[0]), end[1] + 2 / 3 * (ctrl[1] - end[1]))
+            segments.append(('C', [c1, c2, end]))
+            cur, last_ctrl = end, ctrl
+        elif low == 'a':
+            end = (a[5] + ox, a[6] + oy)
+            for cubic in _arc_to_cubics(cur[0], cur[1], a[0], a[1], a[2], a[3], a[4], end[0], end[1]):
+                segments.append(('C', list(cubic)))
+            cur, last_ctrl = end, None
+        last_cmd = low
+    return segments
 
-    cust_geom = _el('a:custGeom', children=[
+
+def segments_to_geometry(segments, matrix):
+    """变换后的路径段 -> (custGeom, bbox)；无有效点返回 (None, None)"""
+    moved = [(cmd, [mat_apply(matrix, *p) for p in pts]) for cmd, pts in segments]
+    points = [p for _, pts in moved for p in pts]
+    if len(points) < 2:
+        return None, None
+    x0, y0 = min(p[0] for p in points), min(p[1] for p in points)
+    x1, y1 = max(p[0] for p in points), max(p[1] for p in points)
+    width, height = max(x1 - x0, 0.01), max(y1 - y0, 0.01)
+
+    def pt(p):
+        return _el('a:pt', {'x': str(px(p[0] - x0)), 'y': str(px(p[1] - y0))})
+
+    path = _el('a:path', {'w': str(max(1, px(width))), 'h': str(max(1, px(height)))})
+    for cmd, pts in moved:
+        if cmd == 'M':
+            path.append(_el('a:moveTo', children=[pt(pts[0])]))
+        elif cmd == 'L':
+            path.append(_el('a:lnTo', children=[pt(pts[0])]))
+        elif cmd == 'C':
+            path.append(_el('a:cubicBezTo', children=[pt(p) for p in pts]))
+        else:
+            path.append(_el('a:close'))
+    geom = _el('a:custGeom', children=[
         _el('a:avLst'), _el('a:gdLst'), _el('a:ahLst'), _el('a:cxnLst'),
         _el('a:rect', {'l': 'l', 't': 't', 'r': 'r', 'b': 'b'}),
-        _el('a:pathLst', children=[path_el]),
+        _el('a:pathLst', children=[path]),
     ])
-    return cust_geom
+    return geom, (x0, y0, width, height)
 
 
 # -------------------------------------------------------------------
 # SVG -> PPTX 转换器
 # -------------------------------------------------------------------
 class SvgConverter:
-    def __init__(self, on_progress=None):
+    SKIP_TAGS = {'defs', 'style', 'linearGradient', 'radialGradient', 'stop', 'pattern',
+                 'clipPath', 'filter', 'mask', 'title', 'desc', 'metadata', 'marker', 'symbol'}
+
+    def __init__(self, group_cards=True, fonts='safe'):
+        self.group_cards = group_cards
+        self.fonts = fonts
         self.sid = 100
         self.grads = {}
-        self.bg_set = False  # 是否已设置幻灯片背景
-        self.on_progress = on_progress  # 进度回调 (i, total, filename)
+        self.painted = 0          # 已输出的可见元素数，用于判定"首个全屏元素 = 背景"
+        self.card_ids = []        # 本页卡片组合的 shape id，按文档顺序
         self.stats = {'shapes': 0, 'skipped': 0, 'errors': 0}
 
     def _id(self):
@@ -417,577 +654,428 @@ class SvgConverter:
         return self.sid
 
     def convert(self, svg_path, slide):
-        self.bg_set = False
+        self.sid = 100
+        self.painted = 0
+        self.card_ids = []
         self.stats = {'shapes': 0, 'skipped': 0, 'errors': 0}
-        tree = etree.parse(str(svg_path))
-        root = tree.getroot()
+        # huge_tree：内嵌的 base64 图层单个属性可超过 libxml2 默认的 10MB 上限
+        root = etree.parse(str(svg_path), etree.XMLParser(huge_tree=True)).getroot()
         self._parse_grads(root)
-        sp_tree = None
-        for d in slide._element.iter():
-            if d.tag.endswith('}spTree'):
-                sp_tree = d
-                break
-        if sp_tree is None:
-            return
-        self._walk(root, sp_tree, 0, 0, 1.0, 1.0, slide)
+        sp_tree = slide.shapes._spTree
+        self._walk(root, sp_tree, IDENTITY, 1.0, slide, in_card=False)
 
+    # ---- 渐变定义 ----
     def _parse_grads(self, root):
         self.grads = {}
-        pct = lambda v: float(v.rstrip('%')) / 100 if '%' in str(v) else float(v)
-        for g in root.iter(f'{{{SVG_NS}}}linearGradient'):
-            gid = g.get('id')
-            if not gid:
-                continue
-            stops = []
-            for s in g.findall(f'{{{SVG_NS}}}stop'):
-                off = s.get('offset', '0%')
-                off = float(off.rstrip('%')) if '%' in off else float(off) * 100
-                stops.append({'offset': off, 'color_str': s.get('stop-color', '#000'),
-                              'opacity': float(s.get('stop-opacity', '1'))})
-            self.grads[gid] = {
-                'type': 'linear', 'stops': stops,
-                'x1': pct(g.get('x1', '0%')), 'y1': pct(g.get('y1', '0%')),
-                'x2': pct(g.get('x2', '100%')), 'y2': pct(g.get('y2', '100%')),
-            }
-        for g in root.iter(f'{{{SVG_NS}}}radialGradient'):
-            gid = g.get('id')
-            if not gid:
-                continue
-            stops = []
-            for s in g.findall(f'{{{SVG_NS}}}stop'):
-                off = s.get('offset', '0%')
-                off = float(off.rstrip('%')) if '%' in off else float(off) * 100
-                stops.append({'offset': off, 'color_str': s.get('stop-color', '#000'),
-                              'opacity': float(s.get('stop-opacity', '1'))})
-            self.grads[gid] = {'type': 'radial', 'stops': stops}
 
-    def _tag(self, el):
-        t = el.tag
-        return t.split('}')[1] if isinstance(t, str) and '}' in t else (t if isinstance(t, str) else '')
+        def pct(v, default):
+            v = v if v is not None else default
+            return float(v.rstrip('%')) / 100 if '%' in str(v) else float(v)
 
-    def _parse_transform(self, el):
-        """解析 transform -> (dx, dy, sx, sy)。"""
-        t = el.get('transform', '')
-        dx, dy, sx, sy = 0.0, 0.0, 1.0, 1.0
-        # translate
-        m = re.search(r'translate\(\s*([\d.\-]+)[,\s]+([\d.\-]+)', t)
-        if m:
-            dx, dy = float(m.group(1)), float(m.group(2))
-        # scale
-        m = re.search(r'scale\(\s*([\d.\-]+)(?:[,\s]+([\d.\-]+))?\s*\)', t)
-        if m:
-            sx = float(m.group(1))
-            sy = float(m.group(2)) if m.group(2) else sx
-        # matrix(a,b,c,d,e,f) -> e=translateX, f=translateY
-        m = re.search(r'matrix\(\s*([\d.\-]+)[,\s]+([\d.\-]+)[,\s]+([\d.\-]+)[,\s]+([\d.\-]+)[,\s]+([\d.\-]+)[,\s]+([\d.\-]+)', t)
-        if m:
-            dx = float(m.group(5))
-            dy = float(m.group(6))
-            sx = float(m.group(1))
-            sy = float(m.group(4))
-        return dx, dy, sx, sy
+        for kind in ('linear', 'radial'):
+            for g in root.iter(f'{{{SVG_NS}}}{kind}Gradient'):
+                gid = g.get('id')
+                if not gid:
+                    continue
+                stops = []
+                for s in g.findall(f'{{{SVG_NS}}}stop'):
+                    off = s.get('offset', '0%')
+                    stops.append({
+                        'offset': float(off.rstrip('%')) if '%' in off else float(off) * 100,
+                        'color_str': s.get('stop-color', '#000'),
+                        'opacity': float(s.get('stop-opacity', '1')),
+                    })
+                gdef = {'type': kind, 'stops': stops}
+                if kind == 'linear':
+                    gdef.update(x1=pct(g.get('x1'), '0%'), y1=pct(g.get('y1'), '0%'),
+                                x2=pct(g.get('x2'), '100%'), y2=pct(g.get('y2'), '0%'))
+                self.grads[gid] = gdef
 
-    def _walk(self, el, sp, ox, oy, group_opacity, scale, slide):
+    # ---- 遍历 ----
+    @staticmethod
+    def _tag(el):
+        return etree.QName(el).localname if isinstance(el.tag, str) else ''
+
+    def _walk(self, el, container, matrix, opacity, slide, in_card):
         tag = self._tag(el)
-        try:
-            if tag == 'rect':
-                self._rect(el, sp, ox, oy, group_opacity, scale, slide)
-            elif tag == 'text':
-                self._text(el, sp, ox, oy, group_opacity, scale)
-            elif tag == 'circle':
-                self._circle(el, sp, ox, oy, group_opacity, scale)
-            elif tag == 'ellipse':
-                self._ellipse(el, sp, ox, oy, group_opacity, scale)
-            elif tag == 'line':
-                self._line(el, sp, ox, oy, scale)
-            elif tag == 'path':
-                self._path(el, sp, ox, oy, group_opacity, scale)
-            elif tag == 'image':
-                self._image(el, sp, ox, oy, group_opacity, scale, slide)
-            elif tag == 'g':
-                dx, dy, sx, sy = self._parse_transform(el)
-                el_opacity = float(el.get('opacity', '1'))
-                child_opacity = group_opacity * el_opacity
-                # scale 累积：父级scale * 当前g的scale
-                child_scale = scale * sx  # 假设sx==sy（等比缩放）
-                new_ox = ox + dx * scale
-                new_oy = oy + dy * scale
-                for c in el:
-                    self._walk(c, sp, new_ox, new_oy,
-                               child_opacity, child_scale, slide)
-            elif tag in ('defs', 'style', 'linearGradient', 'radialGradient',
-                         'stop', 'pattern', 'clipPath', 'filter', 'mask'):
-                pass
-            else:
-                for c in el:
-                    self._walk(c, sp, ox, oy, group_opacity, scale, slide)
-        except Exception as e:
-            self.stats['errors'] += 1
-            print(f"    Warning: {tag} element failed: {e}", file=sys.stderr)
+        if not tag or tag in self.SKIP_TAGS:
+            return
+        handler = getattr(self, f'_draw_{tag}', None)
+        if handler is not None:
+            try:
+                handler(el, container, mat_mul(matrix, parse_transform(el.get('transform'))),
+                        opacity * num(el.get('opacity'), 1.0), slide)
+            except Exception as exc:      # 单个元素失败不影响整页
+                self.stats['errors'] += 1
+                print(f"    Warning: <{tag}> failed: {exc}", file=sys.stderr)
+            return
 
-    def _rect(self, el, sp, ox, oy, opacity, scale, slide):
-        x = (float(el.get('x', 0)) * scale) + ox
-        y = (float(el.get('y', 0)) * scale) + oy
-        w = float(el.get('width', 0)) * scale
-        h = float(el.get('height', 0)) * scale
+        child_matrix = mat_mul(matrix, parse_transform(el.get('transform'))) if tag == 'g' else matrix
+        child_opacity = opacity * num(el.get('opacity'), 1.0) if tag == 'g' else opacity
+        is_card = (self.group_cards and not in_card and tag == 'g'
+                   and CARD_CLASS in (el.get('class') or '').split())
+        target = container
+        if is_card:
+            target = make_group(self._id(), f'Card {len(self.card_ids) + 1}')
+            container.append(target)
+        for child in el:
+            self._walk(child, target, child_matrix, child_opacity, slide, in_card or is_card)
+        if is_card:
+            if fit_group(target):
+                self.card_ids.append(int(target.find(f'.//{{{NS["p"]}}}cNvPr').get('id')))
+            else:
+                container.remove(target)
+
+    def _add(self, container, shape):
+        container.append(shape)
+        self.painted += 1
+        self.stats['shapes'] += 1
+
+    def _stroke(self, el, matrix, opacity):
+        stroke = el.get('stroke', '')
+        if not stroke or stroke == 'none':
+            return None
+        width = num(el.get('stroke-width'), 1.0) * mat_scale(matrix)
+        dash = None
+        dasharray = el.get('stroke-dasharray', '')
+        if dasharray and dasharray != 'none':
+            first = num(re.split(r'[\s,]+', dasharray.strip())[0], 0)
+            dash = 'sysDot' if first <= num(el.get('stroke-width'), 1.0) * 2 else 'dash'
+        return make_line(stroke, width, self.grads, opacity * num(el.get('stroke-opacity'), 1.0),
+                         cap=el.get('stroke-linecap'), dash=dash)
+
+    def _fill(self, el, opacity):
+        return make_fill(el.get('fill', ''), self.grads, opacity * num(el.get('fill-opacity'), 1.0))
+
+    # ---- 各元素 ----
+    def _draw_rect(self, el, container, matrix, opacity, slide):
+        w, h = num(el.get('width')), num(el.get('height'))
         if w <= 0 or h <= 0:
             return
+        x, y = num(el.get('x')), num(el.get('y'))
+        fill_s, stroke_s = el.get('fill', ''), el.get('stroke', '')
+        color = parse_color(fill_s)
+        if color and color[0] != 'grad' and color[1] == 0 and (not stroke_s or stroke_s == 'none'):
+            return                                    # 全透明无边框：不可见
 
-        # 过滤面积 < 4px 的纯装饰元素
+        if not mat_axis_aligned(matrix):              # 旋转/斜切的矩形按多边形处理
+            corners = [(x, y), (x + w, y), (x + w, y + h), (x, y + h)]
+            self._draw_segments([('M', [corners[0]])] + [('L', [c]) for c in corners[1:]] + [('Z', [])],
+                                el, container, matrix, opacity, 'R')
+            return
+
+        x0, y0 = mat_apply(matrix, x, y)
+        x1, y1 = mat_apply(matrix, x + w, y + h)
+        x, y, w, h = min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0)
         if w < 4 and h < 4:
+            self.stats['skipped'] += 1                # 亚像素级装饰点
+            return
+
+        # 首个可见元素若为不透明全屏矩形 -> 幻灯片背景
+        opaque = opacity >= 0.99 and color is not None and (
+            self._grad_opaque(color[1]) if color[0] == 'grad' else color[1] >= 99000)
+        if self.painted == 0 and opaque and w >= CANVAS_W - 10 and h >= CANVAS_H - 10:
+            self._set_background(slide, make_fill(fill_s, self.grads, 1.0))
+            self.painted += 1
+            return
+
+        radius = max(num(el.get('rx')), num(el.get('ry'))) * mat_scale(matrix)
+        self._add(container, make_shape(
+            self._id(), f'R{self.sid}', px(x), px(y), px(w), px(h),
+            preset='roundRect' if radius > 0 else 'rect', rx=px(radius),
+            fill_el=self._fill(el, opacity), line_el=self._stroke(el, matrix, opacity)))
+
+    def _grad_opaque(self, grad_id):
+        gdef = self.grads.get(grad_id)
+        if not gdef or not gdef['stops']:
+            return False
+        for stop in gdef['stops']:
+            color = parse_color(stop['color_str'])
+            if not color or color[0] == 'grad' or color[1] * stop.get('opacity', 1.0) < 99000:
+                return False
+        return True
+
+    def _set_background(self, slide, fill_el):
+        c_sld = slide._element.find(f'{{{NS["p"]}}}cSld')
+        for old in c_sld.findall(f'{{{NS["p"]}}}bg'):
+            c_sld.remove(old)
+        c_sld.insert(0, _el('p:bg', children=[_el('p:bgPr', children=[fill_el, _el('a:effectLst')])]))
+
+    def _draw_circle(self, el, container, matrix, opacity, slide):
+        self._ellipse(el, container, matrix, opacity, num(el.get('r')), num(el.get('r')))
+
+    def _draw_ellipse(self, el, container, matrix, opacity, slide):
+        self._ellipse(el, container, matrix, opacity, num(el.get('rx')), num(el.get('ry')))
+
+    def _ellipse(self, el, container, matrix, opacity, rx, ry):
+        scale = mat_scale(matrix)
+        rx, ry = rx * scale, ry * scale
+        if rx < 1 or ry < 1:
             self.stats['skipped'] += 1
             return
+        cx, cy = mat_apply(matrix, num(el.get('cx')), num(el.get('cy')))
+        box = (px(cx - rx), px(cy - ry), px(2 * rx), px(2 * ry))
+        fill_s, stroke_s = el.get('fill', ''), el.get('stroke', '')
+        hollow = not fill_s or fill_s == 'none'
 
-        fill_s = el.get('fill', '')
-        stroke_s = el.get('stroke', '')
-        c = parse_color(fill_s)
-
-        # 跳过全透明无边框矩形
-        if c and c[0] != 'grad' and c[1] == 0 and not stroke_s:
-            return
-
-        el_opacity = float(el.get('opacity', '1')) * opacity
-
-        # 首个全屏 rect -> 幻灯片背景
-        if not self.bg_set and w >= 1270 and h >= 710:
-            self.bg_set = True
-            bg = slide._element.find(f'.//{{{NS["p"]}}}bg')
-            if bg is None:
-                cSld = slide._element.find(f'{{{NS["p"]}}}cSld')
-                if cSld is not None:
-                    bg_el = _el('p:bg', children=[
-                        _el('p:bgPr', children=[
-                            make_fill(fill_s, self.grads, el_opacity),
-                            _el('a:effectLst'),
-                        ])
-                    ])
-                    cSld.insert(0, bg_el)
-            return  # 不再作为形状添加
-
-        r = max(float(el.get('rx', 0)), float(el.get('ry', 0)))
-        preset = 'roundRect' if r > 0 else 'rect'
-        fill_el = make_fill(fill_s, self.grads, el_opacity)
-        line_el = make_line(stroke_s, el.get('stroke-width', '1')) if stroke_s else None
-        shape = make_shape(self._id(), f'R{self.sid}',
-                           px(x), px(y), px(w), px(h),
-                           preset=preset, fill_el=fill_el, line_el=line_el, rx=px(r))
-        sp.append(shape)
-        self.stats['shapes'] += 1
-
-    def _text(self, el, sp, ox, oy, opacity, scale):
-        """每个 tspan 保持独立文本框，保留精确 x/y 坐标。"""
-        fill_s = el.get('fill', el.get('color', ''))
-        fsz = el.get('font-size', '14px').replace('px', '')
-        fw = el.get('font-weight', '')
-        ff = el.get('font-family', '')
-        baseline = el.get('dominant-baseline', '')
-        anchor = el.get('text-anchor', 'start')
-
-        tspans = list(el.findall(f'{{{SVG_NS}}}tspan'))
-
-        if tspans:
-            for ts in tspans:
-                txt = ts.text
-                if not txt or not txt.strip():
-                    continue
-                x = float(ts.get('x', 0)) * scale + ox
-                y = float(ts.get('y', 0)) * scale + oy
-                tlen = float(ts.get('textLength', 0))
-                ts_fsz = ts.get('font-size', fsz).replace('px', '')
-                ts_fw = ts.get('font-weight', fw)
-                ts_fill = ts.get('fill', fill_s)
-                ts_ff = ts.get('font-family', ff)
-                fh = float(ts_fsz)
-                # baseline偏移: text-after-edge -> y是底部减全高; auto -> y是baseline减85%
-                if 'after-edge' in baseline:
-                    y -= fh
-                else:
-                    y -= fh * 0.85
-                c = parse_color(ts_fill)
-                hex6 = c[0] if c and c[0] != 'grad' else '000000'
-                alpha = c[1] if c and c[0] != 'grad' else 100000
-                alpha = int(alpha * opacity)
-                cx_v = px(tlen) if tlen > 0 else px(len(txt) * float(ts_fsz) * 0.7)
-                cy_v = px(fh * 1.5)
-                # text-anchor 偏移: middle -> x减半宽, end -> x减全宽
-                if anchor == 'middle':
-                    x -= cx_v / EMU_PX / 2
-                elif anchor == 'end':
-                    x -= cx_v / EMU_PX
-                run = {
-                    'text': txt.strip(), 'sz': font_sz(ts_fsz),
-                    'bold': ts_fw in ('bold', '700', '800', '900'),
-                    'hex': hex6, 'alpha': alpha,
-                    'font': resolve_font(ts_ff),
-                }
-                shape = make_textbox(self._id(), f'T{self.sid}',
-                                     px(x), px(y), cx_v, cy_v, [[run]])
-                sp.append(shape)
-                self.stats['shapes'] += 1
-
-        elif el.text and el.text.strip():
-            x = float(el.get('x', 0)) * scale + ox
-            y = float(el.get('y', 0)) * scale + oy
-            fh = float(fsz)
-            # baseline偏移
-            if 'after-edge' in baseline:
-                y -= fh
-            else:
-                y -= fh * 0.85
-            c = parse_color(fill_s)
-            hex6 = c[0] if c and c[0] != 'grad' else '000000'
-            alpha = c[1] if c and c[0] != 'grad' else 100000
-            alpha = int(alpha * opacity)
-            txt = el.text.strip()
-            txt_w = len(txt) * float(fsz) * 0.7
-            # text-anchor 偏移
-            if anchor == 'middle':
-                x -= txt_w / 2
-            elif anchor == 'end':
-                x -= txt_w
-            run = {
-                'text': txt, 'sz': font_sz(fsz),
-                'bold': fw in ('bold', '700', '800', '900'),
-                'hex': hex6, 'alpha': alpha, 'font': resolve_font(ff),
-            }
-            shape = make_textbox(self._id(), f'T{self.sid}',
-                                 px(x), px(y),
-                                 px(len(txt) * float(fsz) * 0.7),
-                                 px(fh * 1.5), [[run]])
-            sp.append(shape)
-            self.stats['shapes'] += 1
-
-    def _circle(self, el, sp, ox, oy, opacity, scale):
-        cx_v = float(el.get('cx', 0)) * scale + ox
-        cy_v = float(el.get('cy', 0)) * scale + oy
-        r = float(el.get('r', 0)) * scale
-        if r <= 0 or r < 2:
-            self.stats['skipped'] += 1
-            return
-
-        el_opacity = float(el.get('opacity', '1')) * opacity
-        fill_s = el.get('fill', '')
-        stroke_s = el.get('stroke', '')
-        stroke_w_s = el.get('stroke-width', '1')
-        dasharray = el.get('stroke-dasharray', '')
-
-        # 环形图特殊处理：fill=none + stroke + dasharray -> OOXML arc + 粗描边
-        if (fill_s == 'none' or not fill_s) and stroke_s and dasharray:
-            sw = float(strip_unit(stroke_w_s))
-            # 解析 dasharray (格式: "188.1 188.5" 或 "113.097px, 150.796px")
-            dash_parts = [float(strip_unit(p.strip())) for p in dasharray.replace(',', ' ').split() if p.strip()]
-            if len(dash_parts) >= 2:
-                circumference = 2 * math.pi * r
-                arc_len = dash_parts[0]
-                angle_pct = min(arc_len / circumference, 1.0)
-
-                # 检查 rotate transform
-                transform = el.get('transform', '')
-                start_angle = 0
-                rot_m = re.search(r'rotate\(\s*([\d.\-]+)', transform)
-                if rot_m:
-                    start_angle = float(rot_m.group(1))
-
-                # SVG -> PowerPoint 角度转换
-                # SVG rotate(-90) = 从 12 点钟方向开始
-                # PowerPoint arc: adj1=startAngle, adj2=endAngle (从3点钟顺时针, 60000单位/度)
-                ppt_start = (start_angle + 90) % 360
-                sweep = angle_pct * 360
-                ppt_end = (ppt_start + sweep) % 360
-
-                adj1 = int(ppt_start * 60000)
-                adj2 = int(ppt_end * 60000)
-
-                # 用 arc 预设 (只画弧线轮廓) + 粗描边 = 环形弧
-                geom = _el('a:prstGeom', {'prst': 'arc'})
-                av = _el('a:avLst')
-                av.append(_el('a:gd', {'name': 'adj1', 'fmla': f'val {adj1}'}))
-                av.append(_el('a:gd', {'name': 'adj2', 'fmla': f'val {adj2}'}))
-                geom.append(av)
-
-                # 描边颜色 = SVG 的 stroke 颜色（支持渐变引用）
-                stroke_color = parse_color(stroke_s)
-                ln_children = []
-                if stroke_color and stroke_color[0] == 'grad':
-                    # stroke 引用渐变 -> 提取渐变的第一个 stop 颜色作为实色
-                    gdef = self.grads.get(stroke_color[1])
-                    if gdef and gdef.get('stops'):
-                        first_stop = gdef['stops'][0]
-                        sc = parse_color(first_stop['color_str'])
-                        if sc and sc[0] != 'grad':
-                            ln_children.append(_el('a:solidFill', children=[
-                                _srgb(sc[0], int(sc[1] * el_opacity))
-                            ]))
-                    # 也尝试用渐变填充（OOXML线条支持渐变）
-                    if not ln_children and gdef:
-                        grad_fill = _make_grad(gdef)
-                        if grad_fill is not None:
-                            ln_children.append(grad_fill)
-                elif stroke_color and stroke_color[0] != 'grad':
-                    ln_children.append(_el('a:solidFill', children=[
-                        _srgb(stroke_color[0], int(stroke_color[1] * el_opacity))
-                    ]))
-                ln_children.append(_el('a:round'))
-                line_el = _el('a:ln', {'w': str(int(sw * 12700))}, children=ln_children)
-
-                shape = _el('p:sp')
-                shape.append(_el('p:nvSpPr', children=[
-                    _el('p:cNvPr', {'id': str(self._id()), 'name': f'Arc{self.sid}'}),
-                    _el('p:cNvSpPr'), _el('p:nvPr'),
-                ]))
-                sp_pr = _el('p:spPr')
-                sp_pr.append(_el('a:xfrm', children=[
-                    _el('a:off', {'x': str(max(0, px(cx_v - r))),
-                                  'y': str(max(0, px(cy_v - r)))}),
-                    _el('a:ext', {'cx': str(px(2 * r)),
-                                  'cy': str(px(2 * r))}),
-                ]))
-                sp_pr.append(geom)
-                sp_pr.append(_el('a:noFill'))
-                sp_pr.append(line_el)
-                shape.append(sp_pr)
-                sp.append(shape)
-                self.stats['shapes'] += 1
+        # 环形进度：fill=none + stroke-dasharray="弧长 间隔" -> arc 预设 + 粗描边
+        dash = [num(p) for p in re.split(r'[\s,]+', el.get('stroke-dasharray', '').strip()) if p]
+        # （虚线圆的 dasharray 会沿圆周重复，弧长+间隔远小于周长，不走这个分支）
+        circumference = 2 * math.pi * num(el.get('r') or el.get('rx'))
+        is_progress = len(dash) >= 2 and dash[0] > 0 and dash[0] + dash[1] >= circumference * 0.98
+        if hollow and stroke_s and is_progress:
+            sweep = min(dash[0] / circumference, 1.0) * 360
+            line = make_line(stroke_s, num(el.get('stroke-width'), 1.0) * scale, self.grads, opacity,
+                             cap=el.get('stroke-linecap'))
+            if line is not None and sweep < 359.5:
+                # SVG 圆从 3 点钟方向顺时针起笔；arc 的角度同为自 3 点钟顺时针
+                start = mat_rotation(matrix) % 360
+                self._add(container, make_shape(
+                    self._id(), f'Arc{self.sid}', *box, preset='arc', line_el=line,
+                    adjustments={'adj1': int(start * 60000),
+                                 'adj2': int(((start + sweep) % 360) * 60000)}))
                 return
+        line = make_line(stroke_s, num(el.get('stroke-width'), 1.0) * scale, self.grads, opacity) \
+            if is_progress else self._stroke(el, matrix, opacity)
+        self._add(container, make_shape(
+            self._id(), f'C{self.sid}', *box, preset='ellipse',
+            fill_el=_el('a:noFill') if hollow else self._fill(el, opacity), line_el=line))
 
-        # fill=none + stroke (无dasharray) -> 空心圆 + 粗描边
-        if (fill_s == 'none' or not fill_s) and stroke_s and stroke_s != 'none':
-            sw = float(strip_unit(stroke_w_s))
-            stroke_color = parse_color(stroke_s)
-            ln_children = []
-            if stroke_color and stroke_color[0] != 'grad':
-                ln_children.append(_el('a:solidFill', children=[
-                    _srgb(stroke_color[0], int(stroke_color[1] * el_opacity))
-                ]))
-            ln_children.append(_el('a:round'))
-            line_el = _el('a:ln', {'w': str(int(sw * 12700))}, children=ln_children)
-
-            sp.append(make_shape(self._id(), f'C{self.sid}',
-                                 px(cx_v - r), px(cy_v - r), px(2*r), px(2*r),
-                                 preset='ellipse',
-                                 fill_el=_el('a:noFill'),
-                                 line_el=line_el))
-            self.stats['shapes'] += 1
+    def _draw_line(self, el, container, matrix, opacity, slide):
+        x1, y1 = mat_apply(matrix, num(el.get('x1')), num(el.get('y1')))
+        x2, y2 = mat_apply(matrix, num(el.get('x2')), num(el.get('y2')))
+        line = self._stroke(el, matrix, opacity) if el.get('stroke') else \
+            make_line('#000', mat_scale(matrix), self.grads, opacity)
+        if line is None:
             return
+        self._add(container, make_shape(
+            self._id(), f'L{self.sid}', px(min(x1, x2)), px(min(y1, y2)),
+            px(abs(x2 - x1)), px(abs(y2 - y1)), preset='line', line_el=line,
+            flip_h=x1 > x2, flip_v=y1 > y2))
 
-        # 普通圆形
-        fill_el = make_fill(fill_s, self.grads, el_opacity)
-        line_el = make_line(stroke_s, stroke_w_s) if stroke_s and stroke_s != 'none' else None
-        sp.append(make_shape(self._id(), f'C{self.sid}',
-                             px(cx_v - r), px(cy_v - r), px(2*r), px(2*r),
-                             preset='ellipse', fill_el=fill_el, line_el=line_el))
-        self.stats['shapes'] += 1
+    def _draw_polygon(self, el, container, matrix, opacity, slide):
+        self._poly(el, container, matrix, opacity, closed=True)
 
-    def _ellipse(self, el, sp, ox, oy, opacity, scale):
-        cx_v = float(el.get('cx', 0)) * scale + ox
-        cy_v = float(el.get('cy', 0)) * scale + oy
-        rx = float(el.get('rx', 0)) * scale
-        ry = float(el.get('ry', 0)) * scale
-        if rx <= 0 or ry <= 0:
+    def _draw_polyline(self, el, container, matrix, opacity, slide):
+        self._poly(el, container, matrix, opacity, closed=False)
+
+    def _poly(self, el, container, matrix, opacity, closed):
+        values = [float(v) for v in re.findall(r'[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?', el.get('points', ''))]
+        points = list(zip(values[0::2], values[1::2]))
+        if len(points) < 2:
             return
-        el_opacity = float(el.get('opacity', '1')) * opacity
-        fill_el = make_fill(el.get('fill', ''), self.grads, el_opacity)
-        sp.append(make_shape(self._id(), f'E{self.sid}',
-                             px(cx_v - rx), px(cy_v - ry), px(2*rx), px(2*ry),
-                             preset='ellipse', fill_el=fill_el))
-        self.stats['shapes'] += 1
+        segments = [('M', [points[0]])] + [('L', [p]) for p in points[1:]]
+        if closed:
+            segments.append(('Z', []))
+        self._draw_segments(segments, el, container, matrix, opacity, 'P')
 
-    def _line(self, el, sp, ox, oy, scale):
-        x1 = float(el.get('x1', 0)) * scale + ox
-        y1 = float(el.get('y1', 0)) * scale + oy
-        x2 = float(el.get('x2', 0)) * scale + ox
-        y2 = float(el.get('y2', 0)) * scale + oy
-        line_el = make_line(el.get('stroke', '#000'), el.get('stroke-width', '1'))
-        if line_el is None:
-            return
-        mx, my = min(x1, x2), min(y1, y2)
-        w, h = abs(x2 - x1) or 1, abs(y2 - y1) or 1
-        shape = make_shape(self._id(), f'L{self.sid}',
-                           px(mx), px(my), px(w), px(h),
-                           preset='line', fill_el=_el('a:noFill'), line_el=line_el)
-        xfrm = shape.find(f'.//{{{NS["a"]}}}xfrm')
-        if x1 > x2:
-            xfrm.set('flipH', '1')
-        if y1 > y2:
-            xfrm.set('flipV', '1')
-        sp.append(shape)
-        self.stats['shapes'] += 1
-
-    def _path(self, el, sp, ox, oy, opacity, scale):
-        """SVG <path> -> OOXML custGeom 形状。"""
+    def _draw_path(self, el, container, matrix, opacity, slide):
         d = el.get('d', '')
-        if not d or 'nan' in d:
+        if not d or 'nan' in d.lower():
             return
-        # 计算 bounding box（简化：从 path 数据提取所有数字坐标）
-        nums = re.findall(r'[+-]?(?:\d+\.?\d*|\.\d+)', d)
-        if len(nums) < 4:
-            return
-        coords = [float(n) for n in nums]
-        xs = coords[0::2]
-        ys = coords[1::2] if len(coords) > 1 else [0]
-        bx, by = min(xs), min(ys)
-        bw = max(xs) - bx or 1
-        bh = max(ys) - by or 1
+        self._draw_segments(parse_path(d), el, container, matrix, opacity, 'P')
 
-        # 过滤极小路径
-        if bw < 4 and bh < 4:
+    def _draw_segments(self, segments, el, container, matrix, opacity, prefix):
+        geom, bbox = segments_to_geometry(segments, matrix)
+        if geom is None:
+            return
+        x, y, w, h = bbox
+        if w < 2 and h < 2:
             self.stats['skipped'] += 1
             return
+        self._add(container, make_shape(
+            self._id(), f'{prefix}{self.sid}', px(x), px(y), max(1, px(w)), max(1, px(h)),
+            geom_el=geom, fill_el=self._fill(el, opacity), line_el=self._stroke(el, matrix, opacity)))
 
-        geom_el = parse_path_to_custgeom(d, (bx, by, bw, bh))
-        el_opacity = float(el.get('opacity', '1')) * opacity
-        fill_el = make_fill(el.get('fill', ''), self.grads, el_opacity)
-        line_el = make_line(el.get('stroke', ''), el.get('stroke-width', '1')) if el.get('stroke') else None
+    def _draw_text(self, el, container, matrix, opacity, slide):
+        """每个 tspan 一个文本框，保留精确坐标。"""
+        scale = mat_scale(matrix)
+        base = {key: el.get(key, '') for key in
+                ('fill', 'font-size', 'font-weight', 'font-style', 'font-family', 'letter-spacing')}
+        base['fill'] = base['fill'] or el.get('color', '')
+        after_edge = 'after-edge' in el.get('dominant-baseline', '')
+        anchor = el.get('text-anchor', 'start')
+        vertical = el.get('writing-mode', '').startswith('vertical')
 
-        shape = make_shape(self._id(), f'P{self.sid}',
-                           px((bx + ox) * scale) if scale != 1.0 else px(bx + ox),
-                           px((by + oy) * scale) if scale != 1.0 else px(by + oy),
-                           px(bw * scale), px(bh * scale),
-                           fill_el=fill_el, line_el=line_el, geom_el=geom_el)
-        sp.append(shape)
-        self.stats['shapes'] += 1
+        tspans = el.findall(f'{{{SVG_NS}}}tspan')
+        pieces = [(ts, ts.text) for ts in tspans] if tspans else [(el, el.text)]
+        for node, text in pieces:
+            if not text or not text.strip():
+                continue
+            text = text.strip()
+            attr = {key: node.get(key) or value for key, value in base.items()}
+            size = num(attr['font-size'], 14.0) * scale
+            spacing = num(attr['letter-spacing'], 0.0) * scale
+            x, y = mat_apply(matrix, num(node.get('x')), num(node.get('y')))
+            color = parse_color(attr['fill'])
+            if color and color[0] != 'grad' and color[1] == 0:
+                continue                              # 全透明文字（已烘焙进位图的元素）
+            if not color or color[0] == 'grad':
+                color = ('000000', 100000)
+            latin, east_asian = resolve_fonts(attr['font-family'], self.fonts)
+            weight = attr['font-weight']
+            run = {
+                'text': text, 'sz': font_sz(size),
+                'bold': weight in ('bold', 'bolder') or num(weight, 400) >= 600,
+                'italic': attr['font-style'] in ('italic', 'oblique'),
+                'spc': int(round(spacing * 75)),
+                'hex': color[0], 'alpha': int(color[1] * opacity),
+                'latin': latin, 'ea': east_asian,
+            }
 
-    def _image(self, el, sp, ox, oy, opacity, scale, slide):
+            measured = num(node.get('textLength')) * scale
+            if self.fonts == 'safe' and not vertical:
+                run['sz'] = font_sz(size * fit_scale(text, latin, run['bold'], run['italic'],
+                                                     size, spacing, measured))
+
+            if vertical:
+                # 竖排：x 为列左缘，y 为文字块底缘
+                height = len(text) * (size + spacing)
+                width = max(num(node.get('textLength')) * scale, size * 1.2)
+                box = (x, y - height, width, height + size * 0.2)
+                align = None
+            else:
+                width = measured if measured > 0 else sum(
+                    size * (1.0 if ord(ch) > 0x2E7F else 0.55) + spacing for ch in text)
+                top = y - size if after_edge else y - size * 0.85
+                left = x - width / 2 if anchor == 'middle' else x - width if anchor == 'end' else x
+                box = (left, top, width, size * 1.5)
+                align = {'middle': 'ctr', 'end': 'r'}.get(anchor)
+            self._add(container, make_textbox(
+                self._id(), f'T{self.sid}', px(box[0]), px(box[1]), px(box[2]), px(box[3]),
+                run, align=align, vertical=vertical))
+
+    def _draw_image(self, el, container, matrix, opacity, slide):
         href = el.get(f'{{{XLINK_NS}}}href') or el.get('href', '')
-        x = float(el.get('x', 0)) * scale + ox
-        y = float(el.get('y', 0)) * scale + oy
-        w = float(el.get('width', 0)) * scale
-        h = float(el.get('height', 0)) * scale
-        el_opacity = float(el.get('opacity', '1')) * opacity
+        w, h = num(el.get('width')), num(el.get('height'))
         if not href or w <= 0 or h <= 0:
             return
+        x0, y0 = mat_apply(matrix, num(el.get('x')), num(el.get('y')))
+        x1, y1 = mat_apply(matrix, num(el.get('x')) + w, num(el.get('y')) + h)
+        x, y, w, h = min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0)
 
-        img_source = None
+        source = None
         if href.startswith('data:'):
-            m = re.match(r'data:image/\w+;base64,(.*)', href, re.DOTALL)
+            m = re.match(r'data:image/[\w+.-]+;base64,(.*)', href, re.DOTALL)
             if m:
-                img_source = io.BytesIO(base64.b64decode(m.group(1)))
-        elif href.startswith('file://'):
-            p = Path(href.replace('file://', ''))
-            if p.exists():
-                img_source = str(p)
+                source = io.BytesIO(base64.b64decode(m.group(1)))
         elif not href.startswith('http'):
-            p = Path(href)
-            if p.exists():
-                img_source = str(p)
-
-        if img_source is None:
+            path = Path(href.replace('file://', ''))
+            if path.exists():
+                source = io.BytesIO(path.read_bytes())
+        if source is None:
             return
 
-        # 获取图片原始尺寸以计算宽高比
+        # 首个可见元素若为全屏图片 -> 幻灯片背景图
+        if self.painted == 0 and opacity >= 0.99 and x <= 2 and y <= 2 \
+                and w >= CANVAS_W - 10 and h >= CANVAS_H - 10:
+            _, r_id = slide.part.get_or_add_image_part(source)
+            blip = _el('a:blip')
+            blip.set(f'{{{NS["r"]}}}embed', r_id)
+            self._set_background(slide, _el('a:blipFill', {'dpi': '0', 'rotWithShape': '1'}, children=[
+                blip, _el('a:stretch', children=[_el('a:fillRect')])]))
+            self.painted += 1
+            return
+
         try:
             from PIL import Image as PILImage
-            if isinstance(img_source, io.BytesIO):
-                img_source.seek(0)
-                pil_img = PILImage.open(img_source)
-                img_w, img_h = pil_img.size
-                # 不 close -- PIL close 会关掉底层 BytesIO
-                del pil_img
-                img_source.seek(0)
+            img_w, img_h = PILImage.open(source).size
+            source.seek(0)
+        except Exception:
+            img_w, img_h = w, h
+
+        # preserveAspectRatio: none=拉伸，meet=完整显示，其余按 cover 居中裁剪
+        fit = el.get('preserveAspectRatio', '')
+        box_w, box_h = px(w), px(h)
+        ratio, box_ratio = img_w / img_h, box_w / box_h
+        crop_x = crop_y = 0.0
+        left, top, pic_w, pic_h = px(x), px(y), box_w, box_h
+        if fit != 'none' and abs(ratio - box_ratio) > 0.01:
+            if 'meet' in fit:
+                if ratio > box_ratio:
+                    pic_h = int(box_w / ratio)
+                    top += (box_h - pic_h) // 2
+                else:
+                    pic_w = int(box_h * ratio)
+                    left += (box_w - pic_w) // 2
+            elif ratio > box_ratio:
+                crop_x = (1 - box_ratio / ratio) / 2
             else:
-                with PILImage.open(img_source) as pil_img:
-                    img_w, img_h = pil_img.size
-        except ImportError:
-            # 没有 PIL，退回直接拉伸
-            pic = slide.shapes.add_picture(img_source,
-                                           Emu(px(x)), Emu(px(y)),
-                                           Emu(px(w)), Emu(px(h)))
-            self.stats['shapes'] += 1
-            return
+                crop_y = (1 - ratio / box_ratio) / 2
 
-        # object-fit: cover -- 按比例放大到覆盖容器，然后裁剪
-        container_w = px(w)
-        container_h = px(h)
-        img_ratio = img_w / img_h
-        container_ratio = container_w / container_h
-
-        if img_ratio > container_ratio:
-            # 图片更宽 -> 按高度填满，裁剪左右
-            scale_h = container_h
-            scale_w = int(scale_h * img_ratio)
-        else:
-            # 图片更高 -> 按宽度填满，裁剪上下
-            scale_w = container_w
-            scale_h = int(scale_w / img_ratio)
-
-        # 放置缩放后的图片（居中裁剪）
-        offset_x = (scale_w - container_w) / 2
-        offset_y = (scale_h - container_h) / 2
-
-        pic = slide.shapes.add_picture(img_source,
-                                       Emu(px(x)), Emu(px(y)),
-                                       Emu(scale_w), Emu(scale_h))
-
-        # 用 crop 实现裁剪（值为比例 0.0-1.0）
-        if scale_w > 0 and scale_h > 0:
-            crop_lr = offset_x / scale_w  # 左右各裁多少比例
-            crop_tb = offset_y / scale_h  # 上下各裁多少比例
-            pic.crop_left = crop_lr
-            pic.crop_right = crop_lr
-            pic.crop_top = crop_tb
-            pic.crop_bottom = crop_tb
-
-        # 应用透明度（通过 OOXML alphaModFix）
-        if el_opacity < 0.99:
-            from pptx.oxml.ns import qn
-            sp_pr = pic._element.find(qn('p:spPr'))
-            if sp_pr is None:
-                sp_pr = pic._element.find(qn('pic:spPr'))
-            # 在 blipFill 的 blip 上设置 alphaModFix
-            blip = pic._element.find('.//' + qn('a:blip'))
+        pic = slide.shapes.add_picture(source, Emu(left), Emu(top), Emu(pic_w), Emu(pic_h))
+        pic.crop_left = pic.crop_right = crop_x
+        pic.crop_top = pic.crop_bottom = crop_y
+        pic._element.find(f'.//{{{NS["p"]}}}cNvPr').set('id', str(self._id()))
+        if opacity < 0.99:
+            blip = pic._element.find(f'.//{{{NS["a"]}}}blip')
             if blip is not None:
-                alpha_val = int(el_opacity * 100000)
-                alpha_el = _el('a:alphaModFix', {'amt': str(alpha_val)})
-                blip.append(alpha_el)
-
-        self.stats['shapes'] += 1
+                blip.append(_el('a:alphaModFix', {'amt': str(int(opacity * 100000))}))
+        self._add(container, pic._element)            # 移入当前容器，保持文档顺序
 
 
 # -------------------------------------------------------------------
 # 主流程
 # -------------------------------------------------------------------
-def convert(svg_input, output_path, on_progress=None):
+def collect_svgs(svg_input):
     svg_input = Path(svg_input)
     if svg_input.is_file():
-        svg_files = [svg_input]
-    elif svg_input.is_dir():
-        svg_files = sorted(svg_input.glob('*.svg'))
-    else:
-        print(f"Error: {svg_input} not found", file=sys.stderr)
-        sys.exit(1)
+        return [svg_input]
+    if svg_input.is_dir():
+        return sorted(svg_input.glob('*.svg'), key=natural_key)
+    return []
 
+
+def convert(svg_input, output_path, transition='fade', transition_speed='med', advance_after=None,
+            animate='none', animate_trigger='click', group_cards=True, fonts='safe'):
+    svg_files = collect_svgs(svg_input)
     if not svg_files:
-        print("Error: No SVG files found", file=sys.stderr)
+        print(f"Error: no SVG files found in {svg_input}", file=sys.stderr)
         sys.exit(1)
 
     prs = Presentation()
     prs.slide_width = Emu(SLIDE_W)
     prs.slide_height = Emu(SLIDE_H)
     blank = prs.slide_layouts[6]
-    converter = SvgConverter(on_progress=on_progress)
-    total = len(svg_files)
+    converter = SvgConverter(group_cards=group_cards, fonts=fonts)
 
-    for i, svg_file in enumerate(svg_files):
+    for index, svg_file in enumerate(svg_files, start=1):
         slide = prs.slides.add_slide(blank)
         converter.convert(svg_file, slide)
+        apply_transition(slide, transition, speed=transition_speed, advance_after=advance_after)
+        animated = 0
+        if animate != 'none':
+            animated = apply_entrance(slide, converter.card_ids, effect=animate, trigger=animate_trigger)
         s = converter.stats
-        print(f"  [{i+1}/{total}] {svg_file.name} "
-              f"({s['shapes']} shapes, {s['skipped']} skipped, {s['errors']} errors)")
-        if on_progress:
-            on_progress(i + 1, total, svg_file.name)
+        print(f"  [{index}/{len(svg_files)}] {svg_file.name} ({s['shapes']} shapes, "
+              f"{len(converter.card_ids)} cards, {animated} animated, {s['skipped']} skipped, {s['errors']} errors)")
 
     prs.save(str(output_path))
-    print(f"Saved: {output_path} ({total} slides)")
+    print(f"Saved: {output_path} ({len(svg_files)} slides, transition={transition}, animate={animate})")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SVG to PPTX (native shapes)")
+    parser = argparse.ArgumentParser(description="SVG to PPTX (native shapes, transitions, entrance animations)")
     parser.add_argument('svg', help='SVG file or directory')
     parser.add_argument('-o', '--output', default='presentation.pptx')
-    parser.add_argument('--html-dir', default=None,
-                        help='HTML source directory (for future notes extraction)')
+    parser.add_argument('--transition', default='fade', choices=sorted(TRANSITIONS) + ['none'],
+                        help='页间切换效果（默认 fade）')
+    parser.add_argument('--transition-speed', default='med', choices=TRANSITION_SPEEDS)
+    parser.add_argument('--advance-after', type=float, default=None, metavar='SECONDS',
+                        help='每页停留若干秒后自动翻页（默认仅点击翻页）')
+    parser.add_argument('--animate', default='none', choices=['none'] + sorted(ENTRANCE_EFFECTS),
+                        help='卡片入场动画（默认 none）')
+    parser.add_argument('--animate-trigger', default='click', choices=['click', 'auto'],
+                        help='click=每次点击出现一张卡片；auto=进入页面后依次自动出现')
+    parser.add_argument('--no-group', action='store_true', help='不把卡片内的形状打成组合')
+    parser.add_argument('--fonts', default='safe', choices=['safe', 'design'],
+                        help='safe=映射到 Office 自带字体（默认）；design=保留设计字体名（需目标机器已安装）')
     args = parser.parse_args()
-    convert(args.svg, args.output)
+    if args.animate != 'none' and args.no_group:
+        parser.error('--animate 需要卡片组合，不能与 --no-group 同用')
+    convert(args.svg, args.output, transition=args.transition, transition_speed=args.transition_speed,
+            advance_after=args.advance_after, animate=args.animate, animate_trigger=args.animate_trigger,
+            group_cards=not args.no_group, fonts=args.fonts)
 
 
 if __name__ == '__main__':

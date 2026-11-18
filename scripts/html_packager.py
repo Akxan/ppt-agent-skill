@@ -11,10 +11,14 @@
 import argparse
 import base64
 import html as html_module
-import os
 import re
 import sys
 from pathlib import Path
+
+
+def natural_key(path: Path) -> list:
+    """自然排序：slide-2 排在 slide-10 前面。"""
+    return [int(part) if part.isdigit() else part.lower() for part in re.split(r"(\d+)", path.name)]
 
 
 def inline_images(html_content: str, html_dir: Path) -> str:
@@ -71,10 +75,8 @@ def build_preview(slide_files: list, title: str = "PPT Preview") -> str:
     # 生成 iframe 列表
     iframes = []
     for i, srcdoc in enumerate(slides_srcdoc):
-        display = "block" if i == 0 else "none"
         iframes.append(
-            f'<iframe class="slide-frame" id="slide-{i}" '
-            f'style="display:{display}" '
+            f'<iframe class="slide-frame{" active" if i == 0 else ""}" id="slide-{i}" '
             f'srcdoc="{srcdoc}" '
             f'sandbox="allow-same-origin" '
             f'frameborder="0" scrolling="no"></iframe>'
@@ -123,7 +125,10 @@ def build_preview(slide_files: list, title: str = "PPT Preview") -> str:
     transform-origin: top left;
     position: absolute; top: 0; left: 0;
     border: none;
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.35s ease;
   }}
+  .slide-frame.active {{ opacity: 1; pointer-events: auto; }}
   .nav-hint {{
     position: fixed; bottom: 12px;
     color: rgba(255,255,255,0.25); font-size: 12px;
@@ -153,7 +158,7 @@ function resize() {{
   frames.forEach(f => f.style.transform = 'scale(' + scale + ')');
 }}
 function show(i) {{
-  frames.forEach((f, idx) => f.style.display = idx === i ? 'block' : 'none');
+  frames.forEach((f, idx) => f.classList.toggle('active', idx === i));
   info.textContent = (i+1) + ' / ' + total;
   document.getElementById('btn-prev').disabled = i === 0;
   document.getElementById('btn-next').disabled = i === total - 1;
@@ -186,7 +191,7 @@ def main():
         print(f"Error: {slides_dir} is not a directory", file=sys.stderr)
         sys.exit(1)
 
-    html_files = sorted(slides_dir.glob("*.html"))
+    html_files = sorted(slides_dir.glob("*.html"), key=natural_key)
     if not html_files:
         print(f"Error: No HTML files in {slides_dir}", file=sys.stderr)
         sys.exit(1)
