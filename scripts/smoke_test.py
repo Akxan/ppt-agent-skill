@@ -208,7 +208,11 @@ body{width:1280px;height:720px;overflow:hidden;color:var(--text-primary);font-fa
 <div class="card" data-card-id="a"><h3>营收</h3><p>2.4M</p></div>
 <div class="card" data-card-id="b"><h3>增长</h3><p>47%</p>
   <svg width="60" height="20" viewBox="0 0 60 20"><polygon points="0,20 30,0 60,20" fill="var(--accent-1)"/></svg></div>
-<div class="card" data-card-id="c"><h3>留存</h3><p>92%</p></div>
+<div class="card" data-card-id="c"><h3>留存</h3><p>92%</p>
+  <svg width="80" height="80" viewBox="0 0 80 80"><defs><linearGradient id="g"><stop offset="0%" stop-color="var(--accent-1)"/>
+    <stop offset="100%" stop-color="var(--text-primary)"/></linearGradient></defs>
+    <circle cx="40" cy="40" r="32" fill="none" stroke="url(#g)" stroke-width="8" stroke-dasharray="150 201"
+            transform="rotate(-90 40 40)"/></svg></div>
 </div></body></html>"""
 
 
@@ -258,8 +262,10 @@ def suite_export(s: Suite) -> None:
         s.check(len(groups) == 3, f"卡片页应有 3 个组合，实际 {len(groups)}")
         effects = card_slide.findall(f".//{p_ns}animEffect")
         s.check(len(effects) == 3, f"卡片页应有 3 个入场动画，实际 {len(effects)}")
-        s.check(card_slide.find(f".//{p_ns}custGeom".replace(p_ns, "{http://schemas.openxmlformats.org/drawingml/2006/main}"))
-                is not None, "polygon 未转成自定义形状")
+        a_ns = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+        s.check(card_slide.find(f".//{a_ns}custGeom") is not None, "polygon 未转成自定义形状")
+        arcs = [g for g in card_slide.iter(f"{a_ns}prstGeom") if g.get("prst") == "arc"]
+        s.check(len(arcs) == 1, "渐变描边（色标为 CSS 变量）的环形进度弧丢失")
 
 
 SUITES = {"styles": suite_styles, "mocks": suite_mocks, "charts": suite_charts,

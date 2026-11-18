@@ -264,6 +264,13 @@ function markCards() {
 
 // 兜底改写：dom-to-svg 读不到的简单 CSS 特性转成真实 DOM / 标准属性
 function applyFallbacks() {
+    // 0. SVG 渐变色标里的 var(--x) 解析成实际颜色（dom-to-svg 会原样输出 var()，下游认不出）
+    for (const stop of document.querySelectorAll('svg stop')) {
+        const cs = getComputedStyle(stop);
+        stop.setAttribute('stop-color', cs.stopColor);
+        stop.setAttribute('stop-opacity', cs.stopOpacity);
+    }
+
     // 1. CSS border 三角形（内容盒为 0、仅一条有色边框）改为 SVG polygon
     //    用 clientWidth 判定：border-box 下 computed width 含边框，永远不为 0
     for (const el of document.querySelectorAll('*')) {
