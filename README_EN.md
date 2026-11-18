@@ -55,7 +55,7 @@
 
 ## 💡 What is this?
 
-A **Claude Code Skill** that simulates the complete workflow of a $1,000+/page PPT design agency, turning a single sentence into a professional deck (HTML + editable vector PPTX).
+A **Claude Code Skill** that simulates the complete workflow of a $1,000+/page PPT design agency, turning a single sentence into a professional deck (HTML preview + editable PPTX with transitions and animations).
 
 Not "outline-into-template" — a full pipeline of **research-first generation / content-driven layouts / global style consistency / real-data filling**.
 
@@ -68,14 +68,16 @@ Each style mirrors the actual production typography of world-class brands (**not
 | **6-Step Pipeline** | Interview → Research → Outline → Planning → HTML Design → Post-process (SVG + PPTX) |
 | **26 World-Class Styles** | 5 categories: Dark Professional 7 / Light Premium 8 / Vibrant 4 / Cultural Oriental 3 / Natural Retro 4 |
 | **18 Data Visualizations** | 8 basic + 6 advanced (radar/timeline/funnel/gauge) + 4 ECharts-grade (world map/network/Sankey/heatmap calendar) |
-| **Bento Grid Layouts** | 7 flexible card layouts driven by content, not templates |
+| **Bento Grid Layouts** | 7 base layouts + 3 extended ones, driven by content, not templates |
 | **World-Class Typography** | 7-level scale · letter-spacing rules · tabular-nums · OpenType features · serif italic mixing · 3-tier font fallback |
 | **Smart Illustrations** | AI-generated images with 5 visual fusion techniques (fade/tinted overlay/ambient bg/etc.) |
 | **Failure Modes Catalog** | 8 failure modes (underfill / decorative_substitution / etc.) + repair-order rules |
 | **Cross-page Narrative** | Density alternation · chapter color progression · cover-ending visual echo |
 | **Style Preview Gallery** | `gallery.py` one-shot generates a 26-style card-wall index |
-| **Smoke Testing** | `smoke_test.py` validates JSON / pipeline-compat / typography / e2e pipeline |
-| **PPTX Compatible** | HTML → SVG → PPTX pipeline; right-click "Convert to Shape" in PPT 365 for full editing |
+| **Editable PPTX** | Text becomes text boxes, graphics become native shapes, cards become groups; radial backgrounds, glows and other complex effects are rasterized into faithful image layers |
+| **Transitions & Animations** | Fade between slides by default; optional per-card entrance (on click or automatic), verified in PowerPoint |
+| **Strict Mode** | Optional: `validate.py` checks outline, planning, style, slides and screenshots after each step |
+| **Smoke Testing** | `smoke_test.py` covers styles, mocks, charts, validators, doc links and the real export pipeline |
 
 ## 🚀 Quick Start
 
@@ -198,7 +200,7 @@ Five categories cover all typical commercial scenarios. Every mock is a real 128
 | **Advanced** | 6 | Radar · Timeline · Funnel · Gauge · Grouped bar · Simple map | [`charts/advanced.md`](references/charts/advanced.md) |
 | **ECharts-grade** | 4 | World choropleth · Network graph · Sankey · Heatmap calendar | [`charts/complex.md`](references/charts/complex.md) |
 
-All implemented in pure HTML/CSS/SVG, **no JS runtime** (preserves svg2pptx pipeline). All charts auto-adapt to the 26 styles via CSS variables.
+All implemented in pure HTML/CSS/SVG, **no JS runtime**, so shapes and numbers stay editable in the PPTX. All charts auto-adapt to the 26 styles via the standard CSS variables.
 
 ## 🔧 Workflow
 
@@ -226,7 +228,7 @@ Detailed flow in [`SKILL.md`](SKILL.md).
 
 - **TIER 1 · Entry** — User prompt triggers [SKILL.md](SKILL.md) (Agent entry); pulls from all `references/` rule files
 - **TIER 2 · 6-Step Pipeline** — Each step is independent, JSON contracts between steps; each step shows which references it uses
-- **TIER 3 · Outputs** — 4 final artifacts: paginated HTML / vector SVG / editable PPTX / style preview gallery
+- **TIER 3 · Outputs** — paginated HTML / vector SVG / editable PPTX (with transitions and animations) / style preview gallery
 
 **Reference Library** (injected at each step):
 
@@ -244,48 +246,48 @@ Detailed flow in [`SKILL.md`](SKILL.md).
 ppt-agent-skill/
 ├── SKILL.md                      # Main workflow instructions (Agent entry point)
 ├── README.md / README_EN.md      # Chinese / English docs
-├── assets/                       # Visual assets
-│   ├── logo.svg                  # Logo
-│   ├── banner.svg                # README banner
-│   ├── hero-all.png              # 26-style overview composite
-│   └── hero-<category>.png       # Per-category composites
-├── references/                   # Skill reference docs
+├── ATTRIBUTIONS.md               # Sources and credits
+├── assets/                       # README images: logo, architecture, style composites
+├── references/                   # Skill reference docs (index: references/README.md)
 │   ├── prompts.md                # 5 prompt templates
-│   ├── typography.md             # 14 world-class typography rules
-│   ├── bento-grid.md             # 7 layouts + card types
-│   ├── pipeline-compat.md        # HTML→SVG→PPTX compatibility rules
+│   ├── bento-grid.md             # Canvas, 7 layouts, 6 base card types
+│   ├── typography.md             # 14 typography rules
+│   ├── pipeline-compat.md        # Which CSS stays vector / becomes an image layer / is lost
+│   ├── strict-mode.md            # Optional script validation + visual review checklist
 │   ├── method.md                 # Core methodology
-│   ├── style-system.md           # Redirect file (legacy compat)
-│   ├── styles/                   # 26 styles by 5 categories
-│   │   ├── index.md, dark.md, light.md, vibrant.md, cultural.md, natural.md
-│   ├── charts/                   # 18 chart types
-│   │   ├── index.md, basic.md, advanced.md, complex.md
-│   └── principles/
-│       └── failure-modes.md      # 8 failure modes + repair order
-├── scripts/                      # Post-processing + tools
+│   ├── styles/                   # 26 styles: index.md + 5 category files
+│   ├── charts/                   # 18 charts: index.md + basic / advanced / complex
+│   ├── layouts/                  # 10 layouts
+│   ├── blocks/                   # 7 component prototypes + card-styles
+│   ├── page-templates/           # cover / toc / section / end
+│   ├── principles/               # 6 design principles + failure-modes
+│   └── design-runtime/           # Design specs, CSS technique library, data-type mapping
+├── scripts/                      # Scripts (index: scripts/README.md)
 │   ├── html_packager.py          # Multi-page HTML → paginated preview
-│   ├── html2svg.py               # HTML → SVG (dom-to-svg, editable text)
-│   ├── svg2pptx.py               # SVG → PPTX (OOXML native)
-│   ├── gallery.py                # Generate 26-style preview gallery + screenshots
-│   ├── build_hero.py             # Generate README hero composites
-│   └── smoke_test.py             # E2E test + pipeline-compat scan
-├── ppt-output/
-│   └── style-gallery/            # 26 mocks + 26 PNGs + index.html
-├── docs/superpowers/specs/       # Design docs
-└── tests/smoke-results/          # Test reports
+│   ├── html2svg.py               # HTML → SVG (editable text, complex effects rasterized)
+│   ├── svg2pptx.py               # SVG → PPTX (native shapes, transitions, entrance animations)
+│   ├── pptx_motion.py            # OOXML builders for transitions and animations
+│   ├── html2png.py / png2pptx.py # Pixel-perfect PPTX variant
+│   ├── contracts.py              # Single source of truth for data contracts
+│   ├── validate.py               # Strict-mode validation
+│   ├── resource_loader.py        # Fetch reference resources by planning fields
+│   ├── smoke_test.py             # Smoke tests
+│   └── gallery.py / build_hero.py# Style gallery and README composites
+├── ppt-output/style-gallery/     # 26 mocks (1280×720) + screenshots + index.html
+└── docs/                         # Historical design doc
 ```
 
 ## 🧪 Quality Assurance
 
 ```bash
-# JSON validation + pipeline-compat scan + typography self-check (26 styles)
-python3 scripts/smoke_test.py --phase 1
-# → 52 pass / 0 fail / 0 warn
+# Fast suites: 26 style definitions / mock compliance / 18 chart templates / validators / resource routing / doc link integrity
+python3 scripts/smoke_test.py
 
-# End-to-end pipeline (HTML→SVG→PPTX, 3 representative styles)
-python3 scripts/smoke_test.py --phase 5
-# → 6 pass / 0 fail (preview.html + svg/*.svg + presentation.pptx all generated)
+# Add the real export: HTML → SVG → PPTX, asserting backgrounds, card grouping, transitions and entrance animations
+python3 scripts/smoke_test.py --export
 ```
+
+Export fidelity was verified for all 26 styles by rendering the PPTX in real PowerPoint and comparing against browser screenshots. When generating a deck you can also enable [strict mode](references/strict-mode.md), which runs `scripts/validate.py` after each step.
 
 ## 🌟 World-Class Benchmarks
 
@@ -308,9 +310,7 @@ Typography practices borrowed from real brand websites (**not by mimicking scree
 
 ## 📄 Design Docs
 
-Full world-class redesign spec: [`docs/superpowers/specs/2026-05-10-world-class-redesign-design.md`](docs/superpowers/specs/2026-05-10-world-class-redesign-design.md)
-
-Contains: goals & motivation / 26 style list / JSON schema upgrade / font stack strategy / typography rules / chart system design / preview gallery / file org / backward compat / 5-phase implementation / success criteria / decision log.
+Design doc for the 26-style / 18-chart redesign: [`docs/design-history-2026-05.md`](docs/design-history-2026-05.md) (historical record; SKILL.md and the code are authoritative).
 
 ## ⭐ Star History
 
@@ -329,7 +329,7 @@ Contains: goals & motivation / 26 style list / JSON schema upgrade / font stack 
 
 PRs welcome:
 - **New styles**: append JSON to `references/styles/<category>.md` + 1280×720 mock at `ppt-output/style-gallery/<id>.html`
-- **New charts**: append HTML template to `references/charts/<level>.md`
+- **New charts**: append HTML template to `references/charts/<level>.md` and register it in `CHARTS` in `scripts/contracts.py`
 - **Doc improvements**: typo fixes, usage clarifications
 
 Run `python3 scripts/smoke_test.py` before submitting.

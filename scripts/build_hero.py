@@ -15,38 +15,23 @@ except ImportError:
     print("Pillow not installed. Run: pip install Pillow", file=sys.stderr)
     sys.exit(1)
 
-ROOT = Path(__file__).resolve().parent.parent
-GALLERY = ROOT / "ppt-output" / "style-gallery"
-ASSETS = ROOT / "assets"
+import contracts as C
+
+GALLERY = C.SKILL_DIR / "ppt-output" / "style-gallery"
+ASSETS = C.SKILL_DIR / "assets"
 ASSETS.mkdir(exist_ok=True)
 
-CATEGORIES = {
-    "dark_professional": {
-        "cn": "暗色专业",
-        "en": "Dark Professional",
-        "ids": ["dark_tech", "xiaomi_orange", "luxury_purple", "nocturne_violet", "cyberpunk_neon", "chrome_y2k", "noir_film"],
-    },
-    "light_premium": {
-        "cn": "浅色高级",
-        "en": "Light Premium",
-        "ids": ["blue_white", "fresh_green", "minimal_gray", "mocha_editorial", "medical_pulse", "earth_concrete", "champagne_gold", "liquid_glass"],
-    },
-    "vibrant": {
-        "cn": "活力鲜明",
-        "en": "Vibrant",
-        "ids": ["vibrant_rainbow", "kindergarten_pop", "bauhaus_block", "candy_pastel"],
-    },
-    "cultural_oriental": {
-        "cn": "东方文化",
-        "en": "Cultural Oriental",
-        "ids": ["royal_red", "sakura_wabi", "ink_jade"],
-    },
-    "natural_retro": {
-        "cn": "自然/复古",
-        "en": "Natural / Retro",
-        "ids": ["botanic_forest", "safari_savanna", "retro_70s", "gov_authority"],
-    },
-}
+
+def load_categories() -> dict:
+    """板块 -> {cn, en, ids}，顺序与内容都取自风格库。"""
+    categories = {key: {"cn": label["cn"], "en": label["en"], "ids": []}
+                  for key, label in C.STYLE_CATEGORIES.items()}
+    for style in C.load_styles():
+        categories[style["category"]]["ids"].append(style["style_id"])
+    return categories
+
+
+CATEGORIES = load_categories()
 
 THUMB_W, THUMB_H = 480, 270  # 16:9 缩略图
 GAP = 20
@@ -82,10 +67,6 @@ def get_font(size: int, bold: bool = False, cjk: bool = False):
     return ImageFont.load_default()
 
 
-def has_cjk(text: str) -> bool:
-    return any('一' <= c <= '鿿' or '　' <= c <= 'ヿ' for c in text)
-
-
 def make_thumbnail(img_path: Path, w: int = THUMB_W, h: int = THUMB_H) -> Image.Image:
     if not img_path.exists():
         thumb = Image.new("RGB", (w, h), (40, 40, 48))
@@ -109,7 +90,6 @@ def build_category_image(cat_key: str, cat_data: dict) -> Image.Image:
     draw = ImageDraw.Draw(canvas)
 
     title_font = get_font(28, bold=True, cjk=True)
-    sub_font = get_font(14)
     caption_font = get_font(12)
     accent_font = get_font(11, bold=True)
 
@@ -175,8 +155,10 @@ def build_all_categories_grid() -> Image.Image:
 
     draw.ellipse([(padding, padding + 10), (padding + 12, padding + 22)], fill=(34, 211, 238))
     draw.text((padding + 24, padding + 8), "PPT AGENT SKILL · WORLD-CLASS", fill=(34, 211, 238), font=accent_font)
-    draw.text((padding, padding + 50), "26 风格预览画廊", fill=(255, 255, 255), font=title_font)
-    draw.text((padding, padding + 130), "5 板块 · 18 图表 · 世界级排版 · Linear / Anthropic / Stripe / Apple / NYT 标杆", fill=(180, 200, 220), font=sub_font)
+    draw.text((padding, padding + 50), f"{total_styles} 风格预览画廊", fill=(255, 255, 255), font=title_font)
+    draw.text((padding, padding + 130),
+              f"{len(CATEGORIES)} 板块 · {len(C.CHARTS)} 图表 · 世界级排版 · Linear / Anthropic / Stripe / Apple / NYT 标杆",
+              fill=(180, 200, 220), font=sub_font)
 
     all_styles = []
     for cat in CATEGORIES.values():
@@ -205,13 +187,13 @@ def main():
     for cat_key, cat_data in CATEGORIES.items():
         img = build_category_image(cat_key, cat_data)
         out = ASSETS / f"hero-{cat_key.replace('_', '-')}.png"
-        img.save(out, optimize=True, quality=85)
+        img.save(out, optimize=True)
         print(f"  ✓ {out.name} ({img.width}x{img.height})")
 
     print("\nBuilding overall grid...")
     grid = build_all_categories_grid()
     out = ASSETS / "hero-all.png"
-    grid.save(out, optimize=True, quality=85)
+    grid.save(out, optimize=True)
     print(f"  ✓ {out.name} ({grid.width}x{grid.height})")
 
     print(f"\nDone. Outputs in {ASSETS}/")

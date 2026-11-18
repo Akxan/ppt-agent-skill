@@ -1,31 +1,35 @@
 # 图表系统索引（18 种 / 3 层级）
 
-> 所有图表纯 HTML/CSS/SVG 实现，**禁止引入 ECharts 等运行时**（破坏 svg2pptx 管线）。所有图表遵守 [pipeline-compat.md](../pipeline-compat.md) 防偏移规则（SVG 内不写 `<text>`，标签用 HTML div 叠加）。
+> 所有图表纯 HTML/CSS/SVG 实现，**不引入 ECharts 等运行时**（幻灯片必须是静态 HTML）。模板只用保持矢量的写法，进 PPTX 后图形和数字都可编辑；标签用 HTML 元素叠在 SVG 上，不写 SVG `<text>`（见 [pipeline-compat.md](../pipeline-compat.md)）。
 
 ---
 
 ## 1. 18 种图表全景
 
-| # | 图表 | 层级 | 文件 | 何时用 |
-|---|------|------|------|-------|
-| 1 | 进度条 (Progress Bar) | 基础 | [basic.md](basic.md) | 单一百分比 / 完成度 |
-| 2 | 对比柱 (Compare Bar) | 基础 | [basic.md](basic.md) | 两项对比 |
-| 3 | 环形图 (Ring Chart) | 基础 | [basic.md](basic.md) | 百分比 + 中心 KPI |
-| 4 | 迷你折线 (Sparkline) | 基础 | [basic.md](basic.md) | 趋势方向 |
-| 5 | 点阵图 (Waffle Chart) | 基础 | [basic.md](basic.md) | 比例直觉化（10×10）|
-| 6 | KPI 指标卡 | 基础 | [basic.md](basic.md) | 大数字 + 趋势箭头 |
-| 7 | 指标行 (Metric Row) | 基础 | [basic.md](basic.md) | 多指标垂直堆叠 |
-| 8 | 评分指示器 (Rating) | 基础 | [basic.md](basic.md) | 5 分制 / 半星 |
-| 9 | 雷达图 (Radar) | 进阶 | [advanced.md](advanced.md) | 多维度对比（5-8 维）|
-| 10 | 时间线 (Timeline) | 进阶 | [advanced.md](advanced.md) | 历史 / 路线图 / 流程 |
-| 11 | 漏斗图 (Funnel) | 进阶 | [advanced.md](advanced.md) | 转化率 / 流失分析 |
-| 12 | 仪表盘 (Gauge) | 进阶 | [advanced.md](advanced.md) | KPI 评级 / 健康度 |
-| 13 | 多组对比柱 (Grouped Bar) | 进阶 | [advanced.md](advanced.md) | 多类别 × 多组对比 |
-| 14 | 简单地理 (Simple Map) | 进阶 | [advanced.md](advanced.md) | 城市点 / 区域分布 |
-| 15 | 世界地图 choropleth | 复杂 | [complex.md](complex.md) | 全球数据可视化 |
-| 16 | 关系网络 (Network) | 复杂 | [complex.md](complex.md) | 节点 + 连线（静态力导向） |
-| 17 | 桑基图 (Sankey) | 复杂 | [complex.md](complex.md) | 流量 / 转化路径 |
-| 18 | 热力日历 (Heatmap Calendar) | 复杂 | [complex.md](complex.md) | 365 天数据密度 |
+策划稿里在卡片上写 `chart_type`，Step 5c 用 `scripts/resource_loader.py resolve` 取到对应模板。注册表在 `scripts/contracts.py` 的 `CHARTS`。
+
+| # | 图表 | `chart_type` | 层级 | 文件 | 何时用 |
+|---|------|--------------|------|------|-------|
+| 1 | 进度条 | `progress_bar` | 基础 | [basic.md](basic.md) | 单一百分比 / 完成度 |
+| 2 | 对比柱 | `comparison_bar` | 基础 | [basic.md](basic.md) | 2-6 项对比 |
+| 3 | 环形图 | `ring` | 基础 | [basic.md](basic.md) | 百分比 + 中心 KPI |
+| 4 | 迷你折线 | `sparkline` | 基础 | [basic.md](basic.md) | 趋势方向 |
+| 5 | 点阵图 | `waffle` | 基础 | [basic.md](basic.md) | 比例直觉化（10×10）|
+| 6 | KPI 指标卡 | `kpi` | 基础 | [basic.md](basic.md) | 大数字 + 趋势箭头 |
+| 7 | 指标行 | `metric_row` | 基础 | [basic.md](basic.md) | 多指标垂直堆叠 |
+| 8 | 评分指示器 | `rating` | 基础 | [basic.md](basic.md) | 5 分制 / 半星 |
+| 9 | 雷达图 | `radar` | 进阶 | [advanced.md](advanced.md) | 多维度对比（5-8 维）|
+| 10 | 时间线 | `timeline` | 进阶 | [advanced.md](advanced.md) | 历史 / 路线图 / 流程 |
+| 11 | 漏斗图 | `funnel` | 进阶 | [advanced.md](advanced.md) | 转化率 / 流失分析 |
+| 12 | 仪表盘 | `gauge` | 进阶 | [advanced.md](advanced.md) | KPI 评级 / 健康度 |
+| 13 | 多组对比柱 | `grouped_bar` | 进阶 | [advanced.md](advanced.md) | 多类别 × 多组对比；堆叠变体写 `stacked_bar` 亦可 |
+| 14 | 简单地理 | `simple_map` | 进阶 | [advanced.md](advanced.md) | 城市点 / 区域分布 |
+| 15 | 世界地图 | `world_choropleth` | 复杂 | [complex.md](complex.md) | 全球数据可视化 |
+| 16 | 关系网络 | `network_graph` | 复杂 | [complex.md](complex.md) | 节点 + 连线 |
+| 17 | 桑基图 | `sankey_flow` | 复杂 | [complex.md](complex.md) | 流量 / 转化路径 |
+| 18 | 热力日历 | `heatmap_calendar` | 复杂 | [complex.md](complex.md) | 365 天数据密度 |
+
+模板标题里的旧叫法（`compare_bar` / `ring_chart` / `waffle_chart` / `kpi_card`）作为别名仍被接受。
 
 ---
 
@@ -82,7 +86,7 @@
 复杂图表（世界地图、关系网络、桑基图、热力日历）的实现策略：
 - **不引入 ECharts 运行时**
 - 用纯 SVG path 数据 + 静态计算
-- 必要时提供 Python helper 脚本（如 `scripts/world_map_paths.py`）从 GeoJSON 生成 SVG path
+- 需要真实地理边界时，离线把 GeoJSON 简化成 SVG path 再内联
 
 ### 3.6 风格适配
 

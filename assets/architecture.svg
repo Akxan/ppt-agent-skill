@@ -87,9 +87,9 @@
       <circle cx="22" cy="32" r="4" fill="#FF9500"/>
       <text x="36" y="38" font-size="11" font-weight="700" letter-spacing="2" fill="#FF9500">REFERENCES</text>
       <g font-size="11" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.7)">
-        <text x="20" y="62">prompts.md · typography.md</text>
-        <text x="20" y="80">styles/* · charts/* · principles/*</text>
-        <text x="20" y="98">bento-grid.md · pipeline-compat.md</text>
+        <text x="20" y="58">prompts.md · typography.md</text>
+        <text x="20" y="73">styles/* · charts/* · layouts/* · blocks/*</text>
+        <text x="20" y="88">bento-grid.md · pipeline-compat.md</text>
       </g>
     </g>
   </g>
@@ -144,7 +144,7 @@
       <line x1="20" y1="100" x2="200" y2="100" stroke="rgba(255,255,255,0.08)"/>
       <text x="20" y="124" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">Bento Grid 卡片</text>
       <text x="20" y="144" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">cards[] / card_type</text>
-      <text x="20" y="164" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">density_label 合同</text>
+      <text x="20" y="164" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">validate.py 严格模式(可选)</text>
     </g>
 
     <line x1="955" y1="120" x2="980" y2="120" stroke="rgba(255,149,0,0.7)" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -170,7 +170,7 @@
       <line x1="20" y1="100" x2="220" y2="100" stroke="rgba(255,255,255,0.08)"/>
       <text x="20" y="124" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">html_packager.py</text>
       <text x="20" y="144" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">html2svg.py (puppeteer)</text>
-      <text x="20" y="164" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">svg2pptx.py (lxml)</text>
+      <text x="20" y="164" font-size="10" font-family="'JetBrains Mono', monospace" fill="rgba(255,255,255,0.6)">svg2pptx.py · 切换与动画</text>
     </g>
   </g>
 
@@ -229,14 +229,14 @@
       <rect x="0" y="0" width="320" height="100" rx="12" fill="rgba(34,211,238,0.06)" stroke="url(#accent-cyan)" stroke-width="1.5"/>
       <text x="20" y="30" font-size="11" font-weight="700" letter-spacing="2" fill="#22D3EE">🎨 SVG VECTOR</text>
       <text x="20" y="58" font-size="18" font-weight="700" fill="#ffffff" font-family="'JetBrains Mono', monospace">svg/*.svg</text>
-      <text x="20" y="82" font-size="11" fill="rgba(255,255,255,0.6)">单页矢量 · &lt;text&gt; 元素可编辑</text>
+      <text x="20" y="82" font-size="11" fill="rgba(255,255,255,0.6)">单页矢量 · 文字可编辑 · 复杂效果转图层</text>
     </g>
 
     <g transform="translate(690, 30)">
       <rect x="0" y="0" width="320" height="100" rx="12" fill="rgba(210,71,38,0.06)" stroke="url(#accent-mocha)" stroke-width="1.5"/>
       <text x="20" y="30" font-size="11" font-weight="700" letter-spacing="2" fill="#D24726">📊 EDITABLE PPTX</text>
       <text x="20" y="58" font-size="18" font-weight="700" fill="#ffffff" font-family="'JetBrains Mono', monospace">presentation.pptx</text>
-      <text x="20" y="82" font-size="11" fill="rgba(255,255,255,0.6)">PPT 365 右键"转换为形状"可编辑</text>
+      <text x="20" y="82" font-size="11" fill="rgba(255,255,255,0.6)">原生形状与文本框 · 页间切换 · 卡片入场动画</text>
     </g>
 
     <g transform="translate(1035, 30)">

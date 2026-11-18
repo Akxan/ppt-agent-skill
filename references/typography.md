@@ -88,10 +88,10 @@
 
 ## 5. 首字下沉（Drop Cap）
 
-杂志感、编辑感的招牌排版。适用于 `mocha_editorial` / `paper_archive` / `noir_film` 等长正文场景：
+杂志感、编辑感的招牌排版。适用于 `mocha_editorial` / `minimal_gray` / `noir_film` 等长正文场景。`::first-letter` 的样式进可编辑 PPTX 后会丢失，要保留首字下沉就把首字写成独立的 `<span class="drop-cap">`，用同样的规则：
 
 ```css
-.body-text::first-letter {
+.body-text::first-letter, .drop-cap {
   float: left;
   font-size: 60px;
   line-height: 0.85;

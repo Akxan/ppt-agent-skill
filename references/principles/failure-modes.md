@@ -1,8 +1,8 @@
-# Runtime Failure Modes
+# 失败模式目录
 
 > 本文件沉淀 Step 4-5 单页生产链路的失败模式。**它定义合同违约和修复顺序，不定义某种审美风格、不压制创新**。
 >
-> 灵感来源：[sunbigfly/ppt-agent-skills 的 runtime-failure-modes](https://github.com/sunbigfly/ppt-agent-skills/blob/main/references/principles/runtime-failure-modes.md)
+> 分类法来自 [sunbigfly/ppt-agent-skills](https://github.com/sunbigfly/ppt-agent-skills) 的 runtime-failure-modes。
 
 ---
 
@@ -91,16 +91,12 @@
 
 ---
 
-## 5. 自动检测建议
+## 5. 哪些能被脚本拦下
 
-`scripts/smoke_test.py` 通过以下启发式扫描自动检测部分失败模式：
+| 失败模式 | 检测方式 |
+|---------|---------|
+| support_collapse | `validate.py planning`：内容页卡片数低于版式容量、card_type 只有一种、没有数据卡片 |
+| deck_rhythm_clone | `validate.py planning`：连续 3 个内容页使用同一版式 |
+| underfill | `validate.py visual`：截图内容量过低（只能发现接近空白的页面） |
 
-| 失败模式 | 检测启发式 |
-|---------|-----------|
-| underfill | 单页文字总字数 < 80（封面/章节封面除外）|
-| support_collapse | 内容页 cards 数量 < 3 或 card_type 种类 < 2 |
-| anchor_overexpansion | 单一卡片占用面积 > 65% |
-| decorative_substitution | 装饰类 div 数量 > 文本类 div 数量 × 1.5 |
-| deck_rhythm_clone | 连续 3+ 页使用相同的 layout_hint |
-
-其它失败模式（payload_missing, source_overclaim, launch_drift）需要人工或视觉 QA 介入。
+其余模式（payload_missing、source_overclaim、launch_drift、anchor_overexpansion、decorative_substitution）要靠看图判断，清单见 [`../strict-mode.md`](../strict-mode.md) 第 4 节。

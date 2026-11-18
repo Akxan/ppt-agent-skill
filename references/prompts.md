@@ -88,6 +88,11 @@
      - B. 只在关键页面配图（封面 + 章节封面，约 3-5 张）
      - C. 每页都配图（全页氛围感最强，生成时间较长）
      - D. 用户提供图片素材（请提供图片路径）
+   - **动画偏好**（留空按 A）：
+     - A. 只要页间切换（翻页淡入，页内静态）
+     - B. 卡片逐张出现（每点一下出现一张，适合现场讲解）
+     - C. 卡片自动依次出现（适合自动放映）
+     - D. 不要任何动画
 
 ## 输出格式
 以"内容需求单"形式一次性展示所有问题。每题格式：
@@ -254,7 +259,7 @@
   "page_type": "cover | toc | section | content | end",
   "title": "页面标题",
   "goal": "这页最想让观众记住什么",
-  "layout_hint": "布局建议（如：主次结合 / 英雄式 + 下方三栏 / 混合网格）",
+  "layout_hint": "版式 id 或中文名（single-focus 单一焦点 / symmetric 50/50 对称 / asymmetric 非对称两栏 / three-column 三栏等宽 / primary-secondary 主次结合 / hero-top 顶部英雄式 / mixed-grid 混合网格 / l-shape / t-shape / waterfall）",
   "content_summary": {
     "core_argument": "一句话核心论点",
     "main_content": "40-100字的主卡片内容",
@@ -267,10 +272,12 @@
   "cards": [
     {
       "position": "位置描述（top-left / top-right / bottom-left 等）",
-      "card_type": "text | data | list | chart_placeholder | tag_cloud | process",
+      "card_id": "短 id，如 s03-revenue（会写进 HTML 的 data-card-id）",
+      "card_type": "text | data | list | tag_cloud | process | data_highlight | timeline | diagram | quote | comparison | people | image_hero | matrix_chart",
       "title": "卡片标题（12字内）",
       "content": "卡片正文（80字内）",
       "data_points": ["具体数据"],
+      "chart_type": "可选：需要图表时写图表 id（kpi / ring / radar / funnel ...，清单见 charts/index.md）",
       "emphasis_keywords": ["需要强调的关键词"]
     }
   ],
@@ -279,9 +286,10 @@
 ```
 
 ## 硬性要求
-- 每个内容页 cards[] 数组至少 **3 张卡片**
-- 每个内容页至少使用 **2 种不同的 card_type**（不能全是 text）
-- 每个内容页至少 **1 张 data 类型卡片**（突出数字的视觉冲击力）
+- 输出为 JSON 数组，每页一个对象，`page_number` 从 1 连续编号
+- 内容页卡片数不少于版式容量：单一焦点 >= 1，50/50 对称与非对称两栏 >= 2，其余版式 >= **3 张**
+- 卡片 >= 3 张的内容页至少使用 **2 种不同的 card_type**（不能全是 text）
+- 卡片 >= 3 张的内容页至少 **1 张数据卡片**（data / data_highlight，或带 chart_type、data_points 的卡片）
 - 每个内容页至少包含 **1 个数据亮点**（content_summary.data_highlights 中具体数字）
 - >= 70% 的内容页应包含标签/列表类辅助信息
 - 避免使用"单一焦点"布局，除非该页确实只需要一个全屏图表
@@ -411,8 +419,7 @@
 
 ### data（数据卡片）
 - 核心数字: font-size=36-48px, font-weight=800, **直接用 `color: var(--accent-1)`**
-  - **禁止** `background-clip: text` + `-webkit-text-fill-color: transparent` 渐变文字（SVG转换后变成橙色色块+白色文字）
-  - html2svg.py 有兜底自动修复，但会丢失渐变效果只保留主色
+  - 不要用 `background-clip: text` 渐变文字：转 PPTX 后退化为渐变的第一个颜色
 - 单位/标签: font-size=14-16px, color=text-secondary 或 color=accent-2
 - 补充说明: font-size=13px, 在数字下方
 
@@ -430,14 +437,14 @@
 ### process（流程卡片）
 - 步骤: display=flex 水平排列，或垂直排列
 - 节点: width/height=32px, border-radius=50%, background=accent-primary, 居中显示步骤数字
-- 连线: 节点之间用**真实 `<div>` 元素**作为连接线（height=2px, background=accent-color），**禁止**用 ::before/::after 伪元素画连线
-- 箭头: 用内联 `<svg>` 三角形（`<polygon>` 或 `<path>`），**禁止**用 CSS border 技巧画三角形
+- 连线: 节点之间用 `<div>` 作为连接线（height=2px, background=accent-color）
+- 箭头: 用内联 `<svg>` 三角形（`<polygon>` 或 `<path>`）
 - 标签: font-size=12-13px, margin-top=8px
 
 ### data_highlight（大数据高亮区）
 - 用于封面或重点页的超大数据展示
 - 数字: font-size=64-80px, font-weight=900
-- 用 accent 颜色直接上色（避免 -webkit-background-clip: text）
+- 用 accent 颜色直接上色（渐变文字转 PPTX 后会退化为纯色）
 
 ## 视觉设计原则
 
@@ -456,7 +463,7 @@
 
 ### 装饰元素词汇表
 
-以下是专业 PPT 中常用的装饰元素。每页至少使用 2-3 种装饰元素，但不要过度堆砌。所有装饰必须使用真实 DOM 节点。
+以下是专业 PPT 中常用的装饰元素。每页至少使用 2-3 种装饰元素，但不要过度堆砌。
 
 #### 基础装饰（所有风格通用）
 
@@ -521,9 +528,9 @@
 
 **核心原则**：图片是**氛围的一部分**，不是独立的内容块。
 
-> **SVG 管线兼容警告**：所有渐隐/遮罩效果必须用 **真实 `<div>` 遮罩层** 实现（`linear-gradient` 背景的 div 叠加在图片上方）。**禁止使用 CSS `mask-image` / `-webkit-mask-image`**，该属性在 dom-to-svg 转换中完全丢失。html2svg.py 有兜底（自动降级为 opacity），但效果远不如 div 遮罩精细。
+> **导出说明**：下面的技法用 `linear-gradient` 遮罩 `<div>` 叠在图片上实现渐隐，图片和遮罩进 PPTX 后各自独立、可单独调整。也可以直接用 CSS `mask-image`，导出时那张图会连同遮罩效果一起转成图层（外观一致，但不能再单独调遮罩）。
 
-#### 5 种融入技法（全部管线安全 -- 均使用 div 遮罩而非 mask-image）
+#### 5 种融入技法
 
 ##### 1. 渐隐融合 -- 封面页/章节封面的首选
 
@@ -598,28 +605,21 @@
 | 数据页 | 氛围底图 | 0.05-0.10 |
 
 #### 图片 HTML 规范
-- 使用真实 `<img>` 标签（禁用 CSS background-image）
-- 渐变遮罩用**真实 `<div>`**（禁用 ::before/::after）
+- 优先用 `<img>` 标签（进 PPTX 后是独立图片，可替换）；CSS `background-image` 也能导出，但会连同容器背景烘焙成一张图层
 - `object-fit: cover`，`border-radius` 与容器一致
-- 图片使用**绝对路径**（由 agent 生成图片后填入）
-- 底层氛围图的 opacity 必须足够低（0.05-0.15），尺寸限制在容器的 45-60%，避免遮挡前景内容
+- 图片用本地路径（相对 HTML 文件或绝对路径），不要引用远程 URL
+- 底层氛围图的 opacity 必须足够低（0.05-0.15），避免遮挡前景内容
 
 **禁止**：
-- 禁止使用 CSS `mask-image` / `-webkit-mask-image`（SVG 转换后完全丢失，必须用 div 遮罩层替代）
-- 禁止使用 `-webkit-background-clip: text`（SVG 中渐变变色块，必须用 `color` 直接上色）
-- 禁止使用 `-webkit-text-fill-color`（SVG 不识别，必须用标准 `color` 属性）
 - 禁止图片直接裸露在卡片角落（无融入效果）
 - 禁止图片占据整个卡片且无蒙版（文字不可读）
 - 禁止图片与背景色有明显的矩形边界线
 
-#### 内联 SVG 防偏移约束（详见 `pipeline-compat.md` 第 2 章）
+#### 内联 SVG 的写法（详见 `pipeline-compat.md` 第 3 节）
 
-svg2pptx 对 SVG `<text>` 元素的 baseline/text-anchor 定位有精度损失（+/- 3-5px），会导致文字标注在 PPTX 中偏移。以下规则从 HTML 源头避免偏移：
-
-1. **内联 SVG 中禁止写 `<text>` 元素**。所有文字标注（数据标注、x 轴标签、图例文字、环形图中心文字）必须用 HTML `<div>` / `<span>` 绝对定位叠加在 SVG 上方
-2. **不同字号混排必须用 flex 独立元素**（`display:flex; align-items:baseline; gap:4px`），禁止嵌套不同字号的 span
-3. **环形图中心文字用 HTML position:absolute 叠加**，不写在 SVG `<text>` 里
-4. **SVG circle 弧线用 `stroke-dasharray="弧长 间隔"` 两值格式**，禁止 `stroke-dashoffset`
+1. **文字标注不写 SVG `<text>`**：数据标注、x 轴标签、图例、环形图中心文字都用 HTML `<div>` / `<span>` 绝对定位叠在 SVG 上方（SVG `<text>` 进 PPTX 后位置可能偏 3-5px）
+2. **数字与单位字号不同时**用 flex 排成独立元素（`display:flex; align-items:baseline; gap:4px`）
+3. **环形进度用 `stroke-dasharray="弧长 周长"` 两值写法**，不用 `stroke-dashoffset`（会被忽略）
 
 ## 对比度安全规则（必须遵守）
 
@@ -667,7 +667,7 @@ svg2pptx 对 SVG `<text>` 元素的 baseline/text-anchor 定位有精度损失�
 }
 ```
 
-### 3. 环形百分比（必须用内联 SVG，禁止 conic-gradient）
+### 3. 环形百分比（内联 SVG 画弧，中心文字用 HTML 叠加）
 ```html
 <div style="position:relative; width:80px; height:80px;">
   <svg width="80" height="80" viewBox="0 0 80 80">
@@ -677,9 +677,9 @@ svg2pptx 对 SVG `<text>` 元素的 baseline/text-anchor 定位有精度损失�
             stroke="var(--accent-1)" stroke-width="10"
             stroke-dasharray="180.96 201.06" stroke-linecap="round"
             transform="rotate(-90 40 40)"/>
-    <text x="40" y="40" text-anchor="middle" dominant-baseline="central"
-          fill="var(--text-primary)" font-size="16" font-weight="700">90%</text>
   </svg>
+  <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+              font-size:16px; font-weight:700; color:var(--text-primary);">90%</div>
 </div>
 ```
 计算公式: dasharray 第一个值 = 2 * PI * r * (百分比/100), 第二个值 = 2 * PI * r
@@ -808,38 +808,14 @@ svg2pptx 对 SVG `<text>` 元素的 baseline/text-anchor 定位有精度损失�
 | 内容页 | 信息传递、数据说服 | 卡片密度高、数据可视化、要点清晰 |
 | 结束页 | 总结回顾、行动号召 | 3-5 条核心要点回顾 + 明确的 CTA（联系方式/下一步） |
 
-## PPTX 兼容的 CSS/HTML 约束（必须遵守）
+## 导出约束（必须遵守）
 
-本 HTML 最终会经过 dom-to-svg -> svg2pptx 管线转为 PowerPoint 原生形状。以下规则确保转换不丢失任何视觉元素：
+本 HTML 会被转成可编辑的 PowerPoint：文字变成文本框，色块和 SVG 图形变成原生形状，dom-to-svg 画不出的效果自动截成图层。完整规则见 `pipeline-compat.md`，写的时候记住四条：
 
-### 禁止使用的 CSS 特性（dom-to-svg 不支持，会导致元素丢失）
-
-| 禁止 | 原因 | 替代方案 |
-|------|------|----------|
-| `::before` / `::after` 伪元素（用于视觉装饰） | dom-to-svg 无法读取伪元素 | 改用**真实 `<div>`/`<span>` 元素** |
-| `conic-gradient()` | dom-to-svg 不支持 | 改用**内联 SVG `<circle>` + stroke-dasharray** |
-| CSS border 三角形（width:0 + border trick） | 转 SVG 后形状丢失 | 改用**内联 SVG `<polygon>`** |
-| `-webkit-background-clip: text` | 渐变文字不可转换 | 改用 `color: var(--accent-1)` 纯色 |
-| `mask-image` / `-webkit-mask-image` | SVG 转换后形状丢失 | 改用 `clip-path` 或 `border-radius` |
-| `mix-blend-mode` | 不被 SVG 支持 | 改用 `opacity` 叠加 |
-| `filter: blur()` | 光栅化导致模糊区域变位图 | 改用 `opacity` 或 `box-shadow` |
-| `content: '文字'`（伪元素文本） | 不会出现在 SVG 中 | 改用真实 `<span>` 元素 |
-| CSS `counter()` / `counter-increment` | 伪元素依赖 | 改用真实 HTML 文本 |
-
-### 安全可用的 CSS 特性
-- `linear-gradient` 背景
-- `radial-gradient` 背景（纯装饰用途）
-- `border-radius`, `box-shadow`
-- `opacity`
-- 普通 `color`, `font-size`, `font-weight`, `letter-spacing`
-- `border` 属性（用于边框，不是三角形）
-- `clip-path`
-- `transform: translate/rotate/scale`
-- 内联 `<svg>` 元素（**推荐用于图表/箭头/图标**）
-
-### 核心原则
-> **凡是视觉上可见的元素，必须是真实的 DOM 节点。** 伪元素仅可用于不影响视觉输出的用途（如 clearfix）。
-> **需要图形（箭头/环图/图标/三角形）时，优先用内联 SVG。**
+1. **静态 HTML**：禁止 `<script>`、`@keyframes` / `animation`、`<canvas>` / `<video>` / `<iframe>`。页间切换和卡片入场动画在导出时添加，不写在 HTML 里
+2. **卡片根节点打标记**：`<div class="card" data-card-id="...">`（id 取策划稿的 `card_id`）。导出时据此把卡片打成组合、按顺序做入场动画
+3. **关键信息不依赖会退化的效果**：`text-shadow`、渐变文字（`background-clip:text`）、`box-shadow`、`backdrop-filter`、`::first-letter` 进 PPTX 后会丢失或变样，只能用作锦上添花
+4. **装饰可以放开用**：径向/锥形渐变、`filter: blur()`、`mask-image`、`clip-path`、旋转的印章——只要放在**没有文字的装饰元素**上，导出时原样保真（转成图层）
 
 ## CSS 变量模板
 
@@ -875,6 +851,7 @@ svg2pptx 对 SVG `<text>` 元素的 baseline/text-anchor 定位有精度损失�
 - 所有颜色都通过 var(--xxx) 引用，不硬编码
 - 浅色背景的卡片内文字必须是深色，深色背景的卡片内文字必须是浅色
 - 数据卡片至少配一个 CSS 可视化元素（进度条/对比柱/环形图）
+- 每张卡片根节点带 `class="card"` 与 `data-card-id`
 ```
 
 ---
@@ -909,9 +886,9 @@ Step 1 -> 使用 Prompt #1（需求调研）
 Step 2 -> 搜索（不需要专门 Prompt，直接使用搜索工具）
 Step 3 -> 使用 Prompt #2（大纲架构师）
 Step 4 -> 使用 Prompt #3（内容分配与策划稿）
-Step 5a -> 使用 style-system.md 选择风格
+Step 5a -> 按 styles/index.md 选择风格
 Step 5b -> 如有 generate_image，为每页生成配图
-Step 5c -> 使用 Prompt #4（HTML 设计稿），逐页生成。**必须遵守 `pipeline-compat.md` 中的 CSS 禁止清单和管线兼容性规则**
-后处理 -> scripts/html_packager.py 合并预览 + scripts/html2svg.py 转 SVG + scripts/svg2pptx.py 转 PPTX
+Step 5c -> 使用 Prompt #4（HTML 设计稿），逐页生成，遵守 `pipeline-compat.md`
+后处理 -> scripts/html_packager.py 合并预览 + scripts/html2svg.py 转 SVG + scripts/svg2pptx.py 转 PPTX（按动画偏好加 --animate / --transition）
 可选 -> 使用 Prompt #5（演讲备注）
 ```

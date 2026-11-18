@@ -128,15 +128,11 @@
     position: relative;
     background: #000;
   }
-  .frame iframe {
-    border: 0;
-    width: 1280px;
-    height: 720px;
-    transform: scale(calc(100% / 1280 * 420));
-    transform-origin: top left;
-    pointer-events: none;
-    position: absolute;
-    top: 0; left: 0;
+  .frame img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .meta {
     padding: 14px 16px;
@@ -198,7 +194,7 @@
   <header class="header">
     <div class="label">PPT AGENT SKILL · WORLD-CLASS</div>
     <h1>风格预览<em>画廊。</em></h1>
-    <p class="deck">26 个世界级演示文稿风格，按 5 板块分组。每张卡片是真实 1280×720 设计稿的缩略预览，点击打开看原尺寸。</p>
+    <p class="deck">26 个演示文稿风格，按 5 板块分组。每张卡片是真实 1280×720 设计稿的截图，点击打开原尺寸 HTML。</p>
     <div class="stats">
       <div class="stat"><div class="num">26</div><div class="l">STYLES</div></div>
       <div class="stat"><div class="num">5</div><div class="l">CATEGORIES</div></div>
@@ -215,7 +211,7 @@
       <div class="grid">
         <a class="card" href="dark_tech.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="dark_tech.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="dark_tech.png" alt="暗黑科技 (Dark Tech)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -233,7 +229,7 @@
         </a>
 <a class="card" href="xiaomi_orange.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="xiaomi_orange.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="xiaomi_orange.png" alt="小米橙 (Xiaomi Orange)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -251,7 +247,7 @@
         </a>
 <a class="card" href="luxury_purple.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="luxury_purple.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="luxury_purple.png" alt="紫金奢华 (Luxury, Tom Ford-grade)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -269,7 +265,7 @@
         </a>
 <a class="card" href="nocturne_violet.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="nocturne_violet.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="nocturne_violet.png" alt="紫光夜曲 (Nocturne Violet)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -287,7 +283,7 @@
         </a>
 <a class="card" href="cyberpunk_neon.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="cyberpunk_neon.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="cyberpunk_neon.png" alt="赛博霓虹 (Cyberpunk Neon)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -305,7 +301,7 @@
         </a>
 <a class="card" href="chrome_y2k.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="chrome_y2k.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="chrome_y2k.png" alt="千禧铬感 (Chrome Y2K)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -323,7 +319,7 @@
         </a>
 <a class="card" href="noir_film.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="noir_film.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="noir_film.png" alt="黑白胶片 (Noir Film)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -350,7 +346,7 @@
       <div class="grid">
         <a class="card" href="blue_white.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="blue_white.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="blue_white.png" alt="蓝白商务 (Blue White, Apple-grade)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -368,7 +364,7 @@
         </a>
 <a class="card" href="fresh_green.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="fresh_green.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="fresh_green.png" alt="清新自然 (Fresh Green, Aesop-grade)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -386,7 +382,7 @@
         </a>
 <a class="card" href="minimal_gray.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="minimal_gray.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="minimal_gray.png" alt="极简灰白 (NYT Magazine-grade)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -404,7 +400,7 @@
         </a>
 <a class="card" href="mocha_editorial.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="mocha_editorial.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="mocha_editorial.png" alt="Mocha 编辑器 (Mocha Editorial, Anthropic-grade)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -422,7 +418,7 @@
         </a>
 <a class="card" href="medical_pulse.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="medical_pulse.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="medical_pulse.png" alt="医疗专科 (Medical Pulse)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -440,7 +436,7 @@
         </a>
 <a class="card" href="earth_concrete.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="earth_concrete.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="earth_concrete.png" alt="大地水泥 (Earth Concrete)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -458,7 +454,7 @@
         </a>
 <a class="card" href="champagne_gold.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="champagne_gold.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="champagne_gold.png" alt="香槟金喜 (Champagne Gold)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -476,7 +472,7 @@
         </a>
 <a class="card" href="liquid_glass.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="liquid_glass.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="liquid_glass.png" alt="液态玻璃 (Liquid Glass)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -503,7 +499,7 @@
       <div class="grid">
         <a class="card" href="vibrant_rainbow.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="vibrant_rainbow.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="vibrant_rainbow.png" alt="活力彩虹 (Stripe-grade Gradient)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -521,7 +517,7 @@
         </a>
 <a class="card" href="kindergarten_pop.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="kindergarten_pop.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="kindergarten_pop.png" alt="儿童启蒙 (Kindergarten Pop)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -539,7 +535,7 @@
         </a>
 <a class="card" href="bauhaus_block.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="bauhaus_block.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="bauhaus_block.png" alt="包豪斯几何 (Bauhaus Block)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -557,7 +553,7 @@
         </a>
 <a class="card" href="candy_pastel.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="candy_pastel.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="candy_pastel.png" alt="马卡龙糖果 (Candy Pastel)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -584,7 +580,7 @@
       <div class="grid">
         <a class="card" href="royal_red.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="royal_red.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="royal_red.png" alt="朱红宫墙 (Royal Red, Beijing 2022-grade)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -602,7 +598,7 @@
         </a>
 <a class="card" href="sakura_wabi.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="sakura_wabi.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="sakura_wabi.png" alt="侘寂樱花 (Sakura Wabi)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -620,7 +616,7 @@
         </a>
 <a class="card" href="ink_jade.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="ink_jade.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="ink_jade.png" alt="墨韵新中式 (Ink Jade)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -647,7 +643,7 @@
       <div class="grid">
         <a class="card" href="botanic_forest.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="botanic_forest.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="botanic_forest.png" alt="深林秘境 (Botanic Forest)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -665,7 +661,7 @@
         </a>
 <a class="card" href="safari_savanna.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="safari_savanna.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="safari_savanna.png" alt="萨凡纳探险 (Safari Savanna)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -683,7 +679,7 @@
         </a>
 <a class="card" href="retro_70s.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="retro_70s.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="retro_70s.png" alt="70 年代复古 (Retro 70s)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -701,7 +697,7 @@
         </a>
 <a class="card" href="gov_authority.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="gov_authority.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="gov_authority.png" alt="庄严官方 (Government Authority)" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -721,7 +717,7 @@
     </section>
 
   <footer class="footer">
-    <a href="https://github.com" target="_blank">PPT AGENT SKILL · MMXXVI</a>
+    <a href="https://github.com/Akxan/ppt-agent-skill" target="_blank">PPT AGENT SKILL · MMXXVI</a>
   </footer>
 </body>
 </html>

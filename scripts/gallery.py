@@ -1,80 +1,29 @@
 #!/usr/bin/env python3
 """gallery.py -- 风格预览画廊生成器
 
-读取 references/styles/*.md 中的 26 风格定义，生成：
-- ppt-output/style-gallery/index.html  统一卡片墙索引（按 5 板块分组）
-- 可选：调用 puppeteer 截图每个 mock 为 PNG（--screenshots 选项）
+读取 references/styles/ 下的预置风格（经 contracts.load_styles），生成：
+- ppt-output/style-gallery/index.html   按板块分组的卡片墙，缩略图用各风格的截图
+- ppt-output/style-gallery/<style_id>.png（加 --screenshots 时重新截图）
 
 用法:
-    python3 scripts/gallery.py                    # 生成 index.html
-    python3 scripts/gallery.py --screenshots      # + 生成 PNG 截图
-    python3 scripts/gallery.py --serve            # + 启动本地预览服务
-
-输出:
-    ppt-output/style-gallery/index.html
-    ppt-output/style-gallery/<style_id>.png  (with --screenshots)
+    python3 scripts/gallery.py                 # 生成 index.html
+    python3 scripts/gallery.py --screenshots   # 先给每个 mock 重新截图，再生成 index.html
 """
 
 import argparse
-import json
-import re
-import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-STYLES_DIR = ROOT / "references" / "styles"
-GALLERY_DIR = ROOT / "ppt-output" / "style-gallery"
+import contracts as C
 
-CATEGORY_LABELS = {
-    "dark_professional": ("暗色专业", "Dark Professional"),
-    "light_premium": ("浅色高级", "Light Premium"),
-    "vibrant": ("活力鲜明", "Vibrant"),
-    "cultural_oriental": ("东方文化", "Cultural Oriental"),
-    "natural_retro": ("自然/复古", "Natural / Retro"),
-}
-
-CATEGORY_ORDER = [
-    "dark_professional",
-    "light_premium",
-    "vibrant",
-    "cultural_oriental",
-    "natural_retro",
-]
-
-
-def extract_style_jsons(md_path: Path) -> list:
-    """从 markdown 中提取所有 ```json ... ``` 中含 style_id 的对象。"""
-    text = md_path.read_text(encoding="utf-8")
-    blocks = re.findall(r"```json\s*\n(.*?)\n```", text, re.DOTALL)
-    styles = []
-    for block in blocks:
-        try:
-            obj = json.loads(block)
-            if isinstance(obj, dict) and "style_id" in obj:
-                styles.append(obj)
-        except json.JSONDecodeError:
-            pass
-    return styles
-
-
-def collect_all_styles() -> list:
-    """收集所有 26 风格。"""
-    styles = []
-    for md in sorted(STYLES_DIR.glob("*.md")):
-        if md.name == "index.md":
-            continue
-        styles.extend(extract_style_jsons(md))
-    return styles
+GALLERY_DIR = C.SKILL_DIR / "ppt-output" / "style-gallery"
+REPO_URL = "https://github.com/Akxan/ppt-agent-skill"
 
 
 def group_by_category(styles: list) -> dict:
-    """按 category 分组。"""
-    groups = {cat: [] for cat in CATEGORY_ORDER}
-    for s in styles:
-        cat = s.get("category", "uncategorized")
-        if cat in groups:
-            groups[cat].append(s)
+    groups = {category: [] for category in C.STYLE_CATEGORIES}
+    for style in styles:
+        groups[style["category"]].append(style)
     return groups
 
 
@@ -99,28 +48,23 @@ def build_index_html(grouped: dict) -> str:
     """生成统一索引 HTML。"""
     sections = []
 
-    for cat in CATEGORY_ORDER:
+    for cat, label in C.STYLE_CATEGORIES.items():
         styles = grouped.get(cat, [])
         if not styles:
             continue
-        cn, en = CATEGORY_LABELS[cat]
+        cn, en = label["cn"], label["en"]
         cards = []
         for s in styles:
             sid = s["style_id"]
             name = s["style_name"]
             inspiration = s.get("inspiration", "")
-            soul = s.get("design_soul", "")[:90] + ("..." if len(s.get("design_soul", "")) > 90 else "")
             keywords = s.get("mood_keywords", [])
-            swatches = get_swatches(s)
-            sw_html = "".join(
-                f'<div class="sw" style="background:{c}"></div>'
-                for c in swatches
-            )
+            sw_html = "".join(f'<div class="sw" style="background:{c}"></div>' for c in get_swatches(s))
             kw_html = " · ".join(keywords[:3])
             cards.append(f"""
         <a class="card" href="{sid}.html" target="_blank" rel="noopener">
           <div class="frame">
-            <iframe src="{sid}.html" loading="lazy" sandbox="allow-same-origin" scrolling="no" tabindex="-1"></iframe>
+            <img src="{sid}.png" alt="{name}" loading="lazy">
           </div>
           <div class="meta">
             <div class="row1">
@@ -159,7 +103,7 @@ def build_index_html(grouped: dict) -> str:
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PPT Agent Skill · 26 风格预览画廊</title>
+<title>PPT Agent Skill · {total} 风格预览画廊</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -284,15 +228,11 @@ def build_index_html(grouped: dict) -> str:
     position: relative;
     background: #000;
   }}
-  .frame iframe {{
-    border: 0;
-    width: 1280px;
-    height: 720px;
-    transform: scale(calc(100% / 1280 * 420));
-    transform-origin: top left;
-    pointer-events: none;
-    position: absolute;
-    top: 0; left: 0;
+  .frame img {{
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }}
   .meta {{
     padding: 14px 16px;
@@ -354,18 +294,18 @@ def build_index_html(grouped: dict) -> str:
   <header class="header">
     <div class="label">PPT AGENT SKILL · WORLD-CLASS</div>
     <h1>风格预览<em>画廊。</em></h1>
-    <p class="deck">26 个世界级演示文稿风格，按 5 板块分组。每张卡片是真实 1280×720 设计稿的缩略预览，点击打开看原尺寸。</p>
+    <p class="deck">{total} 个演示文稿风格，按 {len(C.STYLE_CATEGORIES)} 板块分组。每张卡片是真实 1280×720 设计稿的截图，点击打开原尺寸 HTML。</p>
     <div class="stats">
       <div class="stat"><div class="num">{total}</div><div class="l">STYLES</div></div>
-      <div class="stat"><div class="num">5</div><div class="l">CATEGORIES</div></div>
-      <div class="stat"><div class="num">18</div><div class="l">CHART TYPES</div></div>
+      <div class="stat"><div class="num">{len(C.STYLE_CATEGORIES)}</div><div class="l">CATEGORIES</div></div>
+      <div class="stat"><div class="num">{len(C.CHARTS)}</div><div class="l">CHART TYPES</div></div>
     </div>
   </header>
 
 {body}
 
   <footer class="footer">
-    <a href="https://github.com" target="_blank">PPT AGENT SKILL · MMXXVI</a>
+    <a href="{REPO_URL}" target="_blank">PPT AGENT SKILL · MMXXVI</a>
   </footer>
 </body>
 </html>
@@ -373,99 +313,43 @@ def build_index_html(grouped: dict) -> str:
 
 
 def take_screenshots(styles: list) -> bool:
-    """用 puppeteer 截图每个 mock 为 PNG。"""
-    # 找 puppeteer 安装位置：优先项目根，其次 ppt-output/e2e-test
-    candidates = [ROOT, ROOT / "ppt-output" / "e2e-test"]
-    work_dir = None
-    for cand in candidates:
-        if (cand / "node_modules" / "puppeteer").exists():
-            work_dir = cand
-            break
-    if work_dir is None:
-        # 如果都没装，在项目根装一个
-        work_dir = ROOT
-        print("Installing puppeteer in project root...")
-        subprocess.run(["npm", "install", "puppeteer"],
-                      capture_output=True, text=True, timeout=180, cwd=str(work_dir))
+    """给每个风格 mock 截图（1920x1080），复用 html2png 的 Puppeteer 脚本。"""
+    from html2png import SCREENSHOT_SCRIPT
+    from html2svg import ensure_puppeteer, run_node
 
-    script_path = work_dir / ".gallery_screenshot.cjs"
-    files = [{"id": s["style_id"], "html": str(GALLERY_DIR / f"{s['style_id']}.html"), "png": str(GALLERY_DIR / f"{s['style_id']}.png")} for s in styles]
-
-    js = """
-const puppeteer = require('puppeteer');
-const fs = require('fs');
-
-(async () => {
-  const config = JSON.parse(process.argv[2]);
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu',
-           '--font-render-hinting=none']
-  });
-  for (const item of config.files) {
-    if (!fs.existsSync(item.html)) {
-      console.warn('skip (no HTML):', item.id);
-      continue;
-    }
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1.5 });
-    await page.goto('file://' + item.html, { waitUntil: 'networkidle0', timeout: 30000 });
-    await new Promise(r => setTimeout(r, 800));
-    await page.screenshot({ path: item.png, fullPage: false });
-    console.log('PNG: ' + item.id);
-    await page.close();
-  }
-  await browser.close();
-  console.log('Done: ' + config.files.length + ' screenshots');
-})();
-"""
-    script_path.write_text(js)
-    try:
-        r = subprocess.run(
-            ["node", str(script_path), json.dumps({"files": files})],
-            cwd=str(work_dir), timeout=600
-        )
-        return r.returncode == 0
-    finally:
-        if script_path.exists():
-            script_path.unlink()
+    if not ensure_puppeteer():
+        return False
+    files = [{"html": str(GALLERY_DIR / f"{s['style_id']}.html"), "png": str(GALLERY_DIR / f"{s['style_id']}.png")}
+             for s in styles if (GALLERY_DIR / f"{s['style_id']}.html").exists()]
+    return run_node(SCREENSHOT_SCRIPT, {"scale": 1.5, "files": files}, ".gallery_screenshot.js")
 
 
 def main():
     parser = argparse.ArgumentParser(description="PPT Style Gallery Generator")
     parser.add_argument("--screenshots", action="store_true",
-                       help="Also take PNG screenshots of each mock (requires puppeteer)")
-    parser.add_argument("--out", default=str(GALLERY_DIR / "index.html"),
-                       help="Output index.html path")
+                        help="先给每个 mock 重新截图（需要 Node.js / puppeteer）")
+    parser.add_argument("--out", default=str(GALLERY_DIR / "index.html"), help="index.html 输出路径")
     args = parser.parse_args()
 
-    styles = collect_all_styles()
+    styles = C.load_styles()
     if not styles:
-        print("Error: no styles found in references/styles/*.md", file=sys.stderr)
+        print("Error: no styles found in references/styles/", file=sys.stderr)
         sys.exit(1)
 
-    grouped = group_by_category(styles)
-    html = build_index_html(grouped)
+    if args.screenshots:
+        print("Taking screenshots...")
+        if not take_screenshots(styles):
+            print("Screenshot step failed", file=sys.stderr)
+            sys.exit(1)
 
+    grouped = group_by_category(styles)
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(html, encoding="utf-8")
+    out_path.write_text(build_index_html(grouped), encoding="utf-8")
 
-    print(f"\n{'='*60}")
-    print(f"Gallery Index Generated")
-    print(f"{'='*60}")
-    print(f"📊 Total styles: {len(styles)}")
-    for cat in CATEGORY_ORDER:
-        cn, en = CATEGORY_LABELS[cat]
-        cnt = len(grouped.get(cat, []))
-        print(f"   · {cn} ({en}): {cnt}")
-    print(f"\n📄 Output: {out_path}")
-    print(f"   Open in browser to preview all 26 styles")
-
-    if args.screenshots:
-        print(f"\n📸 Taking screenshots...")
-        ok = take_screenshots(styles)
-        print(f"   {'✅ Done' if ok else '❌ Failed'} -> {GALLERY_DIR}/<style_id>.png")
+    print(f"Gallery index: {out_path} ({len(styles)} styles)")
+    for category, label in C.STYLE_CATEGORIES.items():
+        print(f"  {label['cn']} ({label['en']}): {len(grouped[category])}")
 
 
 if __name__ == "__main__":

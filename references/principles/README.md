@@ -13,29 +13,19 @@
 | `data-visualization.md` | 数据可视化原则 | Edward Tufte / Stephen Few | 可视化的目标是让观众 3 秒内理解结论，不是展示数据 |
 | `narrative-arc.md` | 叙事结构与节奏 | 金字塔原理 / SCQA / 故事弧线 | 禁止连续 3 页高密度或连续 3 页低密度，波浪形节奏才能维持注意力 |
 
-## 操作手册（策划阶段的地基）
-
-| 文件 | 定位 | 策划时的作用 |
-|------|------|-------------|
-| **`design-principles-cheatsheet.md`** | **6 大原则 -> planning JSON 字段级操作指南 + 逐页 8 项体检单** | **Step 4 单页生产链路里 planning 子阶段的第 0 号必读项。由单页 prompt 在 planning 执行前注入运行上下文。它不是告诉 LLM "什么是好设计"，而是告诉它"每个 JSON 字段怎么填才是好设计"、"不对时改哪个字段、改成什么值"。** |
-
-> 操作手册不替代 6 份原则文件。操作手册 = "怎么操作 JSON 字段"，原则文件 = "为什么要这样操作"。遇到操作手册没覆盖的边缘情况时，回到对应原则文件理解底层逻辑再做判断。
-
 ## 何时读取
 
-- **Step 4 单页链路进入 planning 前**：
-  1. **第一个读** `design-principles-cheatsheet.md`（第 0 号必读项，策划的地基）
-  2. 然后读 `references/principles/README.md`（本文件）建立原则意识
-- **Step 4 同页 HTML / 图审修复阶段**：遇到设计决策犹豫时，按需读取对应原则文件
-- 不需要每次全部读取 6 份原则文件，操作手册已涵盖 JSON 字段级的具体指导
+- **Step 4 写策划稿时**：拿不准一页放多少内容、主次怎么分，读 `cognitive-load.md` 与 `visual-hierarchy.md`
+- **Step 5a 选风格时**：`color-psychology.md`
+- **Step 5c 写 HTML 时**：遇到版式犹豫读 `composition.md`；图表主导的页面读 `data-visualization.md`
+- **自检与返工时**：`failure-modes.md` 的 8 种失败模式与修复顺序
+
+不需要每次全部读取，按当前卡住的问题挑对应的一份。
 
 ## 与具体规则的关系
 
 ```
-原则层（principles/*.md）                    = "为什么这样做"             -> 理解动机
-  └─ 操作手册（cheatsheet）                 = "planning JSON 字段怎么定"  -> 逐页执行 + 逐页体检
-运行规则层（page-agent prompt / playbook）  = "planning 与 HTML 怎么落地" -> 执行约束
-组件层（blocks/charts/layouts）             = "用什么组件/图表/布局"      -> 工具选择
+原则层（principles/*.md）              = 为什么这样做   -> 没有具体规则覆盖时据此判断
+规格层（design-runtime/、bento-grid）  = 具体数值与技法 -> 执行约束
+组件层（layouts / blocks / charts）    = 用什么版式、组件、图表
 ```
-
-原则指导操作手册，操作手册指导 planning JSON 填写，planning JSON 再驱动 HTML 生成。操作手册是原则和执行之间的桥梁，它把抽象的设计理论翻译成 LLM 能精确执行的字段操作指令。

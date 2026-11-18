@@ -1,8 +1,22 @@
 # CSS 高级武器库（W1-W12）
 
-> 由 `scripts/resource_loader.py` 根据每页 `decoration_hints`（含 W 编号）按需注入到 prompt-ready 文件中。
-> 每页只注入被引用的武器代码，不灌全量。相邻页的武器组合应该不同。
-> 策划阶段在 `decoration_hints` 中用 W 编号引用武器：如 `W1 渐变文字 | 标题用 accent-1 → accent-2 135deg`。
+> Step 5c 的进阶技法库，按需查阅。每页挑 2-3 种，相邻页的组合应该不同。
+> 用之前先看下表：每种技法进可编辑 PPTX 后的结果不一样（规则见 `../pipeline-compat.md`）。
+
+| 技法 | 进 PPTX 后 |
+|------|-----------|
+| W1 渐变文字 | **退化**为渐变首色，关键标题慎用 |
+| W2 clip-path 裁剪 | 转图层（无文字元素整体入图；有文字的容器只烘焙背景） |
+| W3 mask-image 遮罩 | 转图层 |
+| W4 conic-gradient | 转图层；环形进度更推荐 SVG `stroke-dasharray`（保持矢量） |
+| W5 backdrop-filter 毛玻璃 | **退化**：模糊丢失，半透明填充保留 |
+| W6 mix-blend-mode | 转图层（仅对无文字元素有效） |
+| W7 多层 box-shadow | **退化**：阴影丢失 |
+| W8 伪元素 | 保持矢量 |
+| W9 空间结构 | 9a/9e 保持矢量；9b/9c 斜切与 9d mask 转图层 |
+| W10 表面材质 | 10a 噪点、10b 扫描线转图层；10c 拟态阴影丢失 |
+| W11 HUD 边角 | 保持矢量 |
+| W12 叙事化页脚 | 保持矢量 |
 
 ---
 

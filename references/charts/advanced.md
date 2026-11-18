@@ -21,7 +21,7 @@
 
 ## 1. 雷达图 (radar)
 
-**何时用**：5-8 个维度的多面对比，比如产品能力评估、候选人能力雷达、品牌健康度。维度数低于 5 用「指标行」，超过 8 用「平行坐标」（complex.md）。
+**何时用**：5-8 个维度的多面对比，比如产品能力评估、候选人能力雷达、品牌健康度。维度数低于 5 用「指标行」，超过 8 个维度时拆成两张雷达图。
 
 **数据格式**：
 
@@ -859,7 +859,7 @@ height% = (value / max) * 100
 **SVG path 说明**：
 - 主轮廓 path 是**简化示意**（约 21 个点），传达"中国大致形状"，**不是地理精确边界**。
 - 海南岛是第二个独立 path。
-- 需要精确边界 / 省界 / choropleth → 见 complex.md 的「中国地图」段落（用 Python helper 从 GeoJSON 生成）。
+- 需要按区域上色（choropleth）→ 见 complex.md 的「世界地图」；需要精确省界时，离线把 GeoJSON 简化成 path 再内联。
 
 **点位定位说明**：
 - 数据点用 HTML div + `position:absolute; left:N%; top:N%` 定位，**不用 SVG circle**，便于未来加 hover / 跳转 / 弹窗。
@@ -868,7 +868,7 @@ height% = (value / max) * 100
 
 **变体**：
 - **世界地图简化版**：换 path 为简化的世界轮廓（所有大陆轮廓合并为 1 path），点位换为各大洲城市。
-- **省份热力（无点）**：`<path>` 列表（每省一个），fill 由 value 映射 `var(--accent-1)` opacity。需 GeoJSON 转 path（见 complex.md helper）。
+- **省份热力（无点）**：`<path>` 列表（每省一个），fill 由 value 映射 `var(--accent-1)` opacity。需离线把 GeoJSON 转成 path。
 
 **自检**：
 - [ ] 国家轮廓用 1 个 SVG `<path>`，简化坐标 (~50-100 字符)

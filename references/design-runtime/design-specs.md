@@ -1,7 +1,7 @@
-# 设计规格书（A/B/C/D/E -- 稳定参考，由 `scripts/resource_loader.py` 自动注入 GLOBAL_RESOURCES）
+# 设计规格书
 
 > 本文件包含画布规范、排版阶梯、卡片规则、色彩装饰、页面类型设计和输出规范。
-> 内容稳定且不需要每次都在 LLM 上下文中占位，由 assembler 机械化注入。
+> Step 5c 写 HTML 时按需查阅。与 `pipeline-compat.md` 冲突时以后者为准。
 
 ---
 
@@ -101,9 +101,9 @@
 | 层级 | 用途 | 字号 | 字重 | 行高 | 颜色 | 设计建议 |
 |------|------|------|------|------|------|---------|
 | H0 | 封面主标题 | 48-160px | 900 | 0.85-1.1 | --text-primary | 尽量让封面标题 >= 80px，奠定气场 |
-| H1 | 页面主标题 | 26-32px | 700 | 1.2 | --text-primary | 推荐用渐变文字填充 |
+| H1 | 页面主标题 | 26-32px | 700 | 1.2 | --text-primary | 可用 accent 色下划线或角标强调（渐变文字转 PPTX 后退化为纯色） |
 | H2 | 卡片标题 | 16-20px | 700 | 1.3 | --text-primary | - |
-| Body | 正文段落 | 13-14px | 400 | 1.8 | --text-secondary | - |
+| Body | 正文段落 | 13-14px 起 | 400 | 1.8 | --text-secondary | 策划稿写了 `density_label` 时不低于该密度的下限（low 24 / mid_low 20 / medium 18 / high 16 / dashboard 14） |
 | Caption | 辅助标注 | 9-12px | 400 | 1.5 | --text-secondary, opacity 0.4-0.6 | - |
 | Overline | PART 标识 | 10-12px | 700, letter-spacing: 2-4px | 1.0 | --accent-1 | 推荐给内容页加上 overline，提升空间层次 |
 | Data-Hero | **核心 KPI（视觉锚点）** | **64-120px** | 900 | 0.85-1.0 | --accent-1 | **建议在数据页设置至少一个 64px+ 的超级数字** |
@@ -344,11 +344,15 @@ body {
 | 2 | 全局 `font-family` 统一 | 秩序的基石 |
 | 3 | 全局依赖 CSS 变量 | 色彩锁定同一宇宙 |
 | 4 | 容器内文字不溢出（`overflow:hidden` + `line-clamp`） | 容器壳可随意移动叠压 |
-| 5 | 只使用纯静态视觉（无 `@keyframes`/`animation`/`transition`） | PPTX 导出不支持动画 |
+| 5 | 只使用纯静态视觉（无 `@keyframes`/`animation`/`<script>`） | 转换只取静态一帧；切换与入场动画在导出时由 `svg2pptx.py` 添加 |
 
 ### CSS 能力释放
 
-可自由使用：`background-clip:text` / `clip-path` / `mask-image` / `conic-gradient` / `backdrop-filter` / `mix-blend-mode` / 多层 `box-shadow` / 伪元素 / `writing-mode` / `filter`。禁止 `@keyframes`/`animation`/`transition`。
+按进 PPTX 后的结果分三类（详见 `pipeline-compat.md`）：
+
+- **放心用**：伪元素、`writing-mode`、线性渐变（保持矢量）；`clip-path` / `mask-image` / `conic-gradient` / 径向渐变 / `filter` / `mix-blend-mode`（放在没有文字的装饰元素上，导出时自动转成图层）
+- **会退化，别让关键信息依赖它**：`background-clip:text`（变纯色）、`text-shadow`、`box-shadow`、`backdrop-filter`
+- **禁止**：`@keyframes` / `animation` / `<script>`
 
 ### 设计倾向
 

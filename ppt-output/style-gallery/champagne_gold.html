@@ -7,6 +7,19 @@
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Bodoni+Moda:ital,wght@0,400;0,600;1,400;1,600&family=Inter:wght@300;400;500;600;700&display=swap');
 
   :root {
+    /* 标准变量合同（取自 references/styles 的风格定义，图表模板依赖这些变量名） */
+    --bg-primary: #faf6ed;
+    --bg-secondary: #f3ead0;
+    --card-bg-from: transparent;
+    --card-bg-to: transparent;
+    --card-border: rgba(201,163,90,0.3);
+    --card-radius: 0px;
+    --text-primary: #2a2218;
+    --text-secondary: rgba(42,34,24,0.6);
+    --accent-1: #c9a35a;
+    --accent-2: #b88d3a;
+    --accent-3: #f5e8c8;
+    --accent-4: #8e6a25;
     --bg-from: #faf6ed;
     --bg-mid:  #f6efd9;
     --bg-to:   #f3ead0;
@@ -244,24 +257,6 @@
     letter-spacing: 0.02em;
   }
 
-  .bottom-ornament {
-    position: absolute;
-    bottom: 86px; left: 0; right: 0;
-    display: flex; align-items: center; justify-content: center; gap: 18px;
-    z-index: 4;
-  }
-  .bottom-ornament .ln {
-    width: 220px; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--gold-deep) 50%, transparent);
-  }
-  .bottom-ornament .glyph {
-    font-family: var(--script-font);
-    font-style: italic;
-    font-size: 18px;
-    color: var(--gold-deep);
-    letter-spacing: 0.1em;
-  }
-
   .footer {
     position: absolute;
     bottom: 56px; left: 80px; right: 80px;
@@ -345,12 +340,6 @@
       <div class="venue">VINEYARD <span class="sep">&middot;</span> CH&Acirc;TEAU MARGAUX <span class="sep">&middot;</span> 6 PM</div>
       <div class="venue-sub">A celebration of love, craft and timeless evenings</div>
     </div>
-  </div>
-
-  <div class="bottom-ornament">
-    <div class="ln"></div>
-    <div class="glyph">&sect;</div>
-    <div class="ln"></div>
   </div>
 
   <div class="footer">

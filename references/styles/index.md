@@ -2,7 +2,7 @@
 
 > 本目录下每个 `<quadrant>.md` 文件包含一个板块的所有风格定义。
 >
-> **新风格的添加**：在对应板块的 `.md` 中追加 JSON Schema + CSS Variables + Mock HTML。
+> **新风格的添加**：在对应板块的 `.md` 中追加风格 JSON，并在 `ppt-output/style-gallery/<style_id>.html` 写一张 1280×720 的 mock。
 >
 > **跨风格共享**：[排版铁律](../typography.md) · [失败模式](../principles/failure-modes.md) · [Bento Grid 布局](../bento-grid.md) · [管线兼容性](../pipeline-compat.md)
 
@@ -180,16 +180,36 @@
 
 ---
 
-## 4. 兼容性
+## 4. 从风格 JSON 到 CSS 变量
 
-- 8 个原 `style_id`（`dark_tech` / `xiaomi_orange` / `blue_white` / `royal_red` / `fresh_green` / `luxury_purple` / `minimal_gray` / `vibrant_rainbow`）保留不变，但视觉按世界级标杆重做。
-- 18 个新风格使用诗意新名。
-- 旧的 `references/style-system.md` 改为引导文件，redirect 到本目录。
-- Prompt #4 中所有原字段保持兼容；新字段（`mood_keywords` / `design_soul` / `decoration_dna` / `typography` / `decorations`）为可选注入。
+style.json 就是选中风格的完整 JSON。写 HTML 时把它映射成 `:root` 里的 12 个标准变量（代码实现是 `scripts/contracts.py` 的 `style_css_variables`）：
+
+| CSS 变量 | 取自 |
+|---------|------|
+| `--bg-primary` / `--bg-secondary` | `background.primary` / `background.gradient_to` |
+| `--card-bg-from` / `--card-bg-to` / `--card-border` / `--card-radius` | `card.gradient_from` / `gradient_to` / `border` / `border_radius` |
+| `--text-primary` / `--text-secondary` | `text.primary` / `text.secondary` |
+| `--accent-1` / `--accent-2` | `accent.primary[0]` / `[1]` |
+| `--accent-3` / `--accent-4` | `accent.secondary[0]` / `[1]` |
+| `--display-font` / `--body-font` / `--serif-italic-font` / `--mono-font` | `typography.*_font` |
+
+图表模板只认这些变量名。风格可以另外定义自己的变量（如 `--gold`），但标准变量必须齐全。
+
+## 5. 自定义风格
+
+26 个预置风格是经过验证的起点，不是固定制服。用户给了品牌色、或没有一个预置风格贴合主题时，按同样的 JSON 结构自定义：
+
+1. **提炼 3-5 个情绪关键词**——用通感体验词（"精密仪器""宫墙黄昏"），不用"蓝色""深色"这种色彩描述词
+2. **从情绪推导色彩**——情绪 -> 场景联想 -> 颜色（"精密仪器" -> 天文台穹顶 -> 深蓝黑底 + 冷青扫描光）
+3. **写一句 `design_soul`**——要有画面感。"蓝色科技风格，专业商务"是坏例子，它只会得到千篇一律的蓝色方块
+4. **写 `variation_strategy`**——描述页与页之间变化的节奏型，而不是"每页用不同装饰"
+5. **选最接近的预置风格作起点**，再换 accent 色、换色温或翻转明暗，输出完整 JSON
+
+硬底线：文字与背景对比度 >= 4.5:1；背景 60% / 卡片 30% / 强调色 10%；同页强调色不超过 2 种；卡片背景与页面背景有可感知的明度差。用 `python3 scripts/validate.py style OUTPUT_DIR/style.json` 检查能否推出全部 CSS 变量。
 
 ---
 
-## 5. 质量自检
+## 6. 新增预置风格的自检
 
 每个风格定义完成后，对照以下 7 条自检：
 
@@ -199,4 +219,5 @@
 - [ ] `decoration_dna.forbidden` 明确列出至少 3 个禁用项
 - [ ] `font_imports` Google Fonts URL 正确
 - [ ] 配套 mock HTML 在 1280×720 画布中渲染正确（无控制台错误）
-- [ ] 通过 `scripts/smoke_test.py --style <id>` 校验
+- [ ] 板块数量变化时同步 `scripts/contracts.py` 的 `STYLE_CATEGORIES`
+- [ ] `python3 scripts/smoke_test.py styles mocks` 通过，再跑 `python3 scripts/gallery.py --screenshots` 与 `python3 scripts/build_hero.py`

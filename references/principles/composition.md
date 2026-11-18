@@ -1,7 +1,7 @@
 # 构图与留白
 
 > 留白不是"浪费空间"，而是信息的呼吸。好的构图引导视线，差的构图让视线迷路。
-> 影响字段：`layout_hint`、`layout_variation_note`、`director_command.spatial_strategy`、`focus_zone`、`negative_space_target`。
+> 影响策划稿字段：`layout_hint`、卡片的排列顺序与主次。
 > 任何页面的排版构图优化都应引用此原则；涵盖格式塔、三分法、留白三层级。
 
 ## 格式塔原则

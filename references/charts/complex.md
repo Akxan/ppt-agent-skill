@@ -215,7 +215,7 @@
 
 **未来扩展（v2）**：
 
-- 真实国家轮廓：用 `scripts/world_map_paths.py` 从 Natural Earth GeoJSON 简化（`topojson-simplify -s 0.5`）后批量生成 path，替换内联的 12 个简化形状
+- 真实国家轮廓：写一个离线脚本从 Natural Earth GeoJSON 简化（`topojson-simplify -s 0.5`）后批量生成 path，替换内联的 12 个简化形状
 - 双色映射（如"增长 vs 下滑"用 `--accent-1` / `--accent-3` 分流）
 - Bubble overlay：在 choropleth 上叠加按城市的圆点（用 SVG `<circle>` + HTML 数字标签）
 
@@ -543,7 +543,7 @@
 
 **未来扩展（v2）**：
 
-- 5+ 列：增加列数时，把 viewBox 改成 1400×500、列间距均分。建议提供 `scripts/sankey_layout.py`，输入 nodes/flows JSON、输出每条 path 的 d 值
+- 5+ 列：增加列数时，把 viewBox 改成 1400×500、列间距均分。可另写离线布局脚本，输入 nodes/flows JSON、输出每条 path 的 d 值
 - 流条 hover 高亮：本管线不支持交互，只能在静态截图选定一条主路径加粗 + 高 opacity
 - 数值标注在流条上：本管线不能跟随曲线，只能在最宽段用 HTML div 叠加数字（仅最大的 1-2 条）
 
@@ -774,7 +774,7 @@
 
 **未来扩展（v2）**：
 
-- Python 模板：写 `scripts/heatmap_calendar.py`，输入 `{date: value}` JSON、年份起始星期，输出 371 个 div 字符串
+- Python 模板：另写离线脚本，输入 `{date: value}` JSON、年份起始星期，输出 371 个 div 字符串
 - 月份分隔：在每月的最后一列右侧加 1px 透明分隔（用 `grid-column-gap` 不行，可在该列 cell 上加 `border-right: 1px solid var(--card-border)`）
 - 突出周末：周六/周日（行 1 / 7）整体降一档 opacity 或加 0.5px 内边框，强化"工作日 vs 周末"差异
 - 多年对比：连续画 2-3 张本模板上下堆叠，每张占 1/3 高度

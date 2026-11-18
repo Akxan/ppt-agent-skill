@@ -7,6 +7,18 @@
   @import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@1,300;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
   :root {
+    /* 标准变量合同（取自 references/styles 的风格定义，图表模板依赖这些变量名） */
+    --bg-secondary: #0a0a0a;
+    --card-bg-from: rgba(250,250,250,0.04);
+    --card-bg-to: transparent;
+    --card-border: rgba(250,250,250,0.08);
+    --card-radius: 0px;
+    --text-primary: #fafafa;
+    --text-secondary: rgba(250,250,250,0.5);
+    --accent-1: #fafafa;
+    --accent-2: #5a5a5a;
+    --accent-3: #2a2a2a;
+    --accent-4: #9a9a9a;
     --bg-primary: #0a0a0a;
     --bg-tone: #111111;
     --ink-white: #fafafa;
@@ -45,7 +57,7 @@
     z-index: 1;
   }
 
-  .grain { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+  .grain { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
   .grain-coarse { opacity: 0.10; }
   .grain-fine { opacity: 0.05; }
 

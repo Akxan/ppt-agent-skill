@@ -193,8 +193,8 @@
 
 ### process（流程卡片）
 - 节点: 32px 圆形, accent 色, 居中步骤数字
-- 连线: **真实 `<div>` 元素**（禁止 ::before/::after）
-- 箭头: **内联 SVG `<polygon>`**（禁止 CSS border 三角形）
+- 连线: `<div>` 元素
+- 箭头: 内联 SVG `<polygon>`
 - **最低要求**: 至少 3 个步骤，每步标题 + 一句描述
 
 ### data_highlight（大数据高亮区）

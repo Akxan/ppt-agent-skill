@@ -12,8 +12,6 @@ __pycache__/
 ppt-output/*
 !ppt-output/style-gallery/
 
-# 测试结果（保留最近的 report.md，运行时图片不入库）
-tests/smoke-results/*/screenshots/
 
 # Puppeteer 运行时产物
 *.bundle.js

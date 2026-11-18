@@ -1,29 +1,25 @@
 # 数据类型 -> 视觉呈现参考索引
 
-> 本表将 brief 中的核心数据类型（metrics、timelines、before_after 等 40+ 种）严格映射到工程上的 `card_type`、`layout_hint` 和最佳 CSS 实现参考。
-> **铁血纪律**：本表是架构引擎的刚性映射组件库，绝非供人随意弃用的“灵感”。Planning sub-agent 在设定好“视觉焦点与动线”后，遇到特定的数据类型，**必须首选在此表内选取最优解去承接**。自由的代价就是质量崩塌与结构散乱，请严格向最佳实践收敛。
+> 把常见的数据类型（metrics、timelines、before_after 等 40+ 种）映射到推荐的 `card_type`、`layout_hint` 和图表。
+> Step 4 写策划稿时按数据类型查表选型；是推荐而非强制，设计意图更清楚时可以换。
 > 覆盖 8 大类：数据展示、商业分析、对比论证、流程结构、叙事内容、技术学术、进度状态、团队与地理。
 
-本表是 **上游资料整理 / brief 结构化 -> Step 4（Planning）-> Step 4（HTML）** 的桥梁。
-
-- 上游资料整理阶段参考"数据类型"列，识别并格式化原始资料
-- Step 4 的 Planning sub-agent **按需查阅**"推荐 card_type"和"推荐布局"列获取灵感，但最终选择由设计意图驱动
-- Step 4 的 HTML sub-agent 参考"CSS 实现参考"列，选择渲染技法
+"CSS 实现参考"列里的 `chart_type: xxx` 指图表库里的模板，写进卡片的 `chart_type` 字段即可由 `resource_loader.py resolve` 取到。
 
 ## 数据展示类
 
 | 数据类型 | 推荐 card_type | 推荐布局 | CSS 实现参考 | 适用页面类型 |
 |---------|---------------|---------|-------------|------------|
 | `data_tables` | `data` / `comparison` | symmetric / three-column | 标准 `<table>` + 斑马纹 + 高亮行 | evidence / comparison |
-| `metrics` | `data_highlight` | hero-top / primary-secondary | `charts/kpi.md` `charts/metric-row.md` | cover / evidence / close |
+| `metrics` | `data_highlight` | hero-top / primary-secondary | `chart_type: kpi` `chart_type: metric_row` | cover / evidence / close |
 | `kv_pairs` | `data` / `list` | symmetric / primary-secondary | 标签+值两列布局，标签半透明 | setup / evidence |
 | `matrix_data` | `matrix_chart` | single-focus / primary-secondary | `blocks/matrix-chart.md` 2x2 grid | comparison / framework |
-| `funnel_data` | `data` | single-focus / primary-secondary | `charts/funnel.md` 梯形递减 | process / evidence |
-| `pie_data` | `data` | primary-secondary | `charts/ring.md` 环形图 + 图例 | evidence / comparison |
-| `trend_series` | `data` | primary-secondary / hero-top | `charts/sparkline.md` 折线 + 标注 | evidence / close |
+| `funnel_data` | `data` | single-focus / primary-secondary | `chart_type: funnel` 梯形递减 | process / evidence |
+| `pie_data` | `data` | primary-secondary | `chart_type: ring` 环形图 + 图例 | evidence / comparison |
+| `trend_series` | `data` | primary-secondary / hero-top | `chart_type: sparkline` 折线 + 标注 | evidence / close |
 | `ranked_list` | `list` / `data_highlight` | l-shape / asymmetric | 排名编号 + 渐变条 + 数值 | evidence / comparison |
-| `score_card` | `data` | single-focus | `charts/radar.md` 雷达图 | evidence / comparison |
-| `distribution_data` | `data` | primary-secondary | `charts/stacked-bar.md` 堆叠柱状 | evidence |
+| `score_card` | `data` | single-focus | `chart_type: radar` 雷达图 | evidence / comparison |
+| `distribution_data` | `data` | primary-secondary | `chart_type: grouped_bar`（堆叠变体） 堆叠柱状 | evidence |
 
 ## 商业分析类
 
@@ -31,7 +27,7 @@
 |---------|---------------|---------|-------------|------------|
 | `swot` | `matrix_chart` | single-focus | 2x2 彩色网格，每象限独立色 | framework / comparison |
 | `pricing_plans` | `comparison` | symmetric / three-column | 卡片并列 + 推荐高亮 + 勾选列表 | comparison / close |
-| `cost_breakdown` | `data` | primary-secondary | `charts/stacked-bar.md` + `charts/ring.md` 占比 | evidence / process |
+| `cost_breakdown` | `data` | primary-secondary | `chart_type: grouped_bar`（堆叠变体） + `chart_type: ring` 占比 | evidence / process |
 | `competitive_matrix` | `comparison` / `matrix_chart` | single-focus / symmetric | 多列对比表 + 评分色块 | comparison |
 | `value_chain` | `process` | l-shape / waterfall | 箭头链 + 每段 value_add 标注 | framework / process |
 
@@ -47,7 +43,7 @@
 
 | 数据类型 | 推荐 card_type | 推荐布局 | CSS 实现参考 | 适用页面类型 |
 |---------|---------------|---------|-------------|------------|
-| `timelines` | `timeline` | l-shape / waterfall | `blocks/timeline.md` `charts/timeline.md` | process / evidence |
+| `timelines` | `timeline` | l-shape / waterfall | `blocks/timeline.md` `chart_type: timeline` | process / evidence |
 | `process_flows` | `process` | l-shape / waterfall | 步骤编号 + 连接线 + warning 高亮 | process / framework |
 | `parallel_items` | `list` / `data` | symmetric / three-column | 并列卡片 + icon + 统一字号 | evidence / setup |
 | `hierarchies` | `diagram` | single-focus / t-shape | `blocks/diagram.md` 嵌套缩进 / 树形 | framework |
@@ -62,10 +58,10 @@
 | 数据类型 | 推荐 card_type | 推荐布局 | CSS 实现参考 | 适用页面类型 |
 |---------|---------------|---------|-------------|------------|
 | `definitions` | `text` | primary-secondary | 术语加粗 + 解释正文 + 分割线 | setup / evidence |
-| `milestone_results` | `data_highlight` | hero-top / symmetric | `charts/kpi.md` 大数字 + 成就描述 | close / cta |
+| `milestone_results` | `data_highlight` | hero-top / symmetric | `chart_type: kpi` 大数字 + 成就描述 | close / cta |
 | `user_testimonials` | `quote` / `people` | asymmetric / primary-secondary | `blocks/quote.md` `blocks/people.md` | evidence / close |
 | `faq_pairs` | `list` / `text` | l-shape / symmetric | Q 加粗 + A 缩进 + 折叠展开 | setup / evidence |
-| `number_highlights` | `data_highlight` | hero-top / single-focus | `charts/kpi.md` 超大字号 + 单位 + 上下文 | cover / close / evidence |
+| `number_highlights` | `data_highlight` | hero-top / single-focus | `chart_type: kpi` 超大字号 + 单位 + 上下文 | cover / close / evidence |
 | `story_arc` | `timeline` / `text` | waterfall / l-shape | 三幕式横向流 + 情绪标注 | setup / evidence |
 | `expert_quotes` | `quote` | primary-secondary / asymmetric | `blocks/quote.md` + 头像 + 机构 | evidence / setup |
 | `checklist` | `list` | l-shape / symmetric | 勾选框 + 完成状态色 | process / close |
@@ -84,7 +80,7 @@
 
 | 数据类型 | 推荐 card_type | 推荐布局 | CSS 实现参考 | 适用页面类型 |
 |---------|---------------|---------|-------------|------------|
-| `progress_tracker` | `data` / `list` | l-shape / symmetric | `charts/progress-bar.md` 进度条 + 状态色 | process / close |
+| `progress_tracker` | `data` / `list` | l-shape / symmetric | `chart_type: progress_bar` 进度条 + 状态色 | process / close |
 | `gantt_data` | `timeline` | waterfall / single-focus | 横向条状 + 时间刻度 + 依赖线 | process / framework |
 | `status_dashboard` | `data` / `list` | mixed-grid | 分类标签 + 状态色块(绿/黄/红) | process / close |
 | `action_items` | `list` | l-shape / symmetric | 任务 + 负责人标签 + 截止日 | close / cta |
@@ -108,30 +104,4 @@
 text | data | list | process | tag_cloud | data_highlight | timeline | diagram | quote | comparison | people | image_hero | matrix_chart
 ```
 
-说明：`process` 是 validator 合法的原生 `card_type`，但当前没有独立的 `blocks/process.md`。使用它时，不要期待 `resource_loader resolve` 自动拿到专属 block 正文；应结合 `layout_refs`、`principle_refs`、`director_command` 和必要的 chart 资源共同落地。
-
-建议扩展（+9 种）：
-
-```
-+funnel        → 漏斗可视化
-+pie_ring      → 饼图/环形图
-+trend_chart   → 趋势折线图
-+ranked        → 排行榜
-+score_radar   → 评分雷达图
-+cycle         → 循环流程图
-+pyramid       → 金字塔/分层图
-+journey       → 用户旅程图
-+code_block    → 代码片段
-```
-
-扩展后共 22 种 card_type，每种都有对应的 CSS 实现参考和区块文档。
-
----
-
-## 高级架构师的组合逻辑（如何消费本表）
-
-这个表格提供了极其明确的数据到视觉的物理通道映射。
-
-1. **降维重组**：如果你认为能够更完美地传达意图，你完全可以将 `metrics` 使用 `asymmetric`（不对称）或者甚至是 `waterfall` 布局。
-2. **跨界调用**：你可以把枯草的数据表格 `data_tables` 投放到为 `competitive_matrix` 设计的体系中运转。
-3. **重型声明**：在策划稿中，当你的布局组合越级跨用了这套标准，就越要在 `resource_rationale` 和 `prose` 中把你的空间物理依据逻辑写清，确保你的选配不是随意拍脑门而是具备严谨的容器自洽性，HTML 层才能安全渲染！。
+其中 `text` / `data` / `list` / `process` / `tag_cloud` / `data_highlight` 六种基础卡片的规格在 `bento-grid.md`，其余七种各有一份 `blocks/` 文档。
