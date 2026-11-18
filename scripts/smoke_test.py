@@ -178,6 +178,10 @@ def suite_resources(s: Suite) -> None:
         if page_type != "content":
             s.check((C.REFS_DIR / "page-templates" / f"{page_type}.md").exists(),
                     f"page-templates/{page_type}.md 不存在")
+    # 支持的最低版本是 Python 3.9：没有这行导入时，签名里的 `X | None` 会在 3.9 下导入即报错
+    for script in sorted(Path(__file__).resolve().parent.glob("*.py")):
+        s.check("from __future__ import annotations" in script.read_text(encoding="utf-8"),
+                f"{script.name} 缺少 from __future__ import annotations")
 
 
 _PATH_REF = re.compile(r"(?<![\w/.-])((?:references|scripts|assets|docs)/[\w./-]+\.(?:md|py|svg|png))")

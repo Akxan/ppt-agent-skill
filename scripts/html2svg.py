@@ -18,6 +18,8 @@ dom-to-svg 装不上时本脚本直接失败；此时可改走 html2png.py + png
     python3 html2svg.py <html_dir_or_file> [-o output_dir] [--no-raster]
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import re

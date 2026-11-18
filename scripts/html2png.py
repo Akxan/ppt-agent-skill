@@ -8,6 +8,8 @@ Puppeteer 以 1280x720 视口截图；--scale 为设备像素比（2 -> 2560x144
     python3 scripts/html2png.py <html_dir_or_file> [-o output_dir] [--scale 2]
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path

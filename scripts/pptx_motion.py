@@ -9,6 +9,8 @@ python-pptx 不提供动画 API，这里直接写 PresentationML。只使用基�
     apply_entrance(slide, [shape_id, ...], effect="fade", trigger="click")
 """
 
+from __future__ import annotations
+
 from lxml import etree
 
 P_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"

@@ -10,6 +10,8 @@
     python3 scripts/gallery.py --screenshots   # 先给每个 mock 重新截图，再生成 index.html
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path

@@ -6,6 +6,8 @@
   assets/hero-<category>.png  每个板块单独一张
 """
 
+from __future__ import annotations
+
 import sys
 from pathlib import Path
 
